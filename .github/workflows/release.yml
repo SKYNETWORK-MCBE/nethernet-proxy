@@ -1,0 +1,117 @@
+name: Release
+
+on:
+  push:
+    tags: ['v*']
+
+permissions:
+  contents: read
+
+concurrency:
+  group: release-${{ github.ref }}
+  cancel-in-progress: false
+
+defaults:
+  run:
+    shell: bash
+
+jobs:
+  release:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    permissions:
+      contents: write
+      id-token: write
+    steps:
+      - uses: actions/checkout@v6
+        with:
+          persist-credentials: false
+          fetch-depth: 0
+      - uses: pnpm/action-setup@v6
+      - uses: actions/setup-node@v6
+        with:
+          node-version: '24'
+          package-manager-cache: false
+
+      - name: Verify package version
+        run: |
+          package_version="$(node -p "require('./package.json').version")"
+          if [ "v$package_version" != "$GITHUB_REF_NAME" ]; then
+            printf 'Tag %s does not match package version %s\n' "$GITHUB_REF_NAME" "$package_version" >&2
+            exit 1
+          fi
+
+      - name: Prepare package metadata
+        id: package
+        run: |
+          node --input-type=module <<'NODE'
+          import { appendFileSync, readFileSync, writeFileSync } from 'node:fs'
+
+          const pkg = JSON.parse(readFileSync('package.json', 'utf8'))
+          // Derive the repository from CI so OIDC/provenance also works on forks.
+          pkg.repository = {
+            type: 'git',
+            url: `git+${process.env.GITHUB_SERVER_URL}/${process.env.GITHUB_REPOSITORY}.git`,
+          }
+          writeFileSync('package.json', `${JSON.stringify(pkg, null, 2)}\n`)
+
+          const prerelease = pkg.version.includes('-')
+          appendFileSync(process.env.GITHUB_OUTPUT,
+            `dist_tag=${prerelease ? 'next' : 'latest'}\nprerelease=${prerelease}\n`)
+          NODE
+
+      - run: pnpm install --frozen-lockfile
+      - run: pnpm lint
+      - run: pnpm check
+      - run: pnpm test
+
+      - name: Build and pack
+        # prepack runs pnpm build. Stage and attach this exact same tarball.
+        run: pnpm pack --out "$RUNNER_TEMP/nethernet-proxy.tgz"
+
+      - name: Stage package on npm with OIDC
+        env:
+          DIST_TAG: ${{ steps.package.outputs.dist_tag }}
+        run: |
+          pnpm stage publish "$RUNNER_TEMP/nethernet-proxy.tgz" \
+            --registry https://registry.npmjs.org \
+            --access public --tag "$DIST_TAG" --provenance --no-git-checks --json --reporter silent \
+            | tee "$RUNNER_TEMP/npm-stage.json"
+          {
+            echo '## npm staged publishing'
+            echo 'Review and approve the stage on npm before publishing the GitHub Release.'
+            echo '```json'
+            cat "$RUNNER_TEMP/npm-stage.json"
+            echo '```'
+          } >> "$GITHUB_STEP_SUMMARY"
+
+      - name: Save release artifacts
+        uses: actions/upload-artifact@v7
+        with:
+          name: release-${{ github.ref_name }}
+          path: |
+            ${{ runner.temp }}/nethernet-proxy.tgz
+            ${{ runner.temp }}/npm-stage.json
+          if-no-files-found: error
+
+      - name: Create draft GitHub Release
+        env:
+          GH_TOKEN: ${{ github.token }}
+          GH_REPO: ${{ github.repository }}
+          PRERELEASE: ${{ steps.package.outputs.prerelease }}
+        run: |
+          {
+            echo '## npm staged publishing'
+            echo 'This package is staged, not yet public. Review the attached tarball, then run `pnpm stage approve <stage-id>` with 2FA (or approve on npmjs.com).'
+            echo 'Publish this GitHub Release manually after npm approval.'
+            echo
+            echo '```json'
+            cat "$RUNNER_TEMP/npm-stage.json"
+            echo '```'
+          } > "$RUNNER_TEMP/release-notes.md"
+          args=(--draft --verify-tag --title "$GITHUB_REF_NAME" --generate-notes
+            --notes-file "$RUNNER_TEMP/release-notes.md")
+          if [[ "$PRERELEASE" == true ]]; then
+            args+=(--prerelease)
+          fi
+          gh release create "$GITHUB_REF_NAME" "$RUNNER_TEMP/nethernet-proxy.tgz" "${args[@]}"

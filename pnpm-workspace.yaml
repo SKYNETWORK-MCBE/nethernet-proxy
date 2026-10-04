@@ -1,0 +1,9 @@
+allowBuilds:
+  '@nubjs/nub': true
+  esbuild: true
+overrides:
+  vite: npm:@voidzero-dev/vite-plus-core@1.0.0
+  vitest: 5.0.1
+peerDependencyRules:
+  allowedVersions:
+    'vitest>vite': '1.0.0'
