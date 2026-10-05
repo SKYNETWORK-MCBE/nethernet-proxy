@@ -7,7 +7,7 @@ import { createMinecraftClientTokenVerifier } from 'nethernet-gateway/minecraft'
 import { SignalStructure, SignalType } from 'nethernet'
 import { createSdpVerifier, sdpHash } from '../src/sdp-verifier'
 import { signSdpIdentity } from '../src/server-identity'
-import { TransportProxy } from '../src/proxy'
+import { Relay } from '../src/relay'
 import { identity, offer, signingKey, plainSdp, serverIdentity } from './helpers/sdp'
 
 const http = createServer((_, res) => {
@@ -114,44 +114,44 @@ test('reject missing fingerprints and unsupported client key curve', async () =>
 })
 test('unsigned offer creates no client connection, server connector or session', async () => {
   const logs: { event: string; fields: Record<string, unknown> }[] = []
-  const proxy = new TransportProxy({
+  const relay = new Relay({
     clientSideIdentity: serverIdentity,
     serverUrl: 'http://127.0.0.1:1',
     log: (event, fields) => logs.push({ event, fields }),
   })
   const replies: SignalStructure[] = []
   try {
-    await proxy.clientEndpoint.handleOffer(
+    await relay.clientEndpoint.handleOffer(
       new SignalStructure(SignalType.ConnectRequest, 1n, plainSdp, 2n),
       (reply) => replies.push(reply),
     )
-    assert.equal(proxy.clientEndpoint.connections.size, 0)
-    assert.equal(proxy.sessions.size, 0)
+    assert.equal(relay.clientEndpoint.connections.size, 0)
+    assert.equal(relay.sessions.size, 0)
     assert.equal(replies[0].type, SignalType.ConnectError)
     assert.equal(replies[0].data, '37')
     assert.equal(logs[0].event, 'signaling_rejected')
   } finally {
-    await proxy.close()
+    await relay.close()
   }
 })
 test('verified result for different SDP is rejected at transport boundary', async () => {
   const valid = await verify(await offer())
-  const proxy = new TransportProxy({
+  const relay = new Relay({
     clientSideIdentity: serverIdentity,
     serverUrl: 'http://127.0.0.1:1',
     verifyOffer: async () => valid,
   })
   const replies: SignalStructure[] = []
   try {
-    await proxy.clientEndpoint.handleOffer(
+    await relay.clientEndpoint.handleOffer(
       new SignalStructure(SignalType.ConnectRequest, 1n, plainSdp, 2n),
       (reply) => replies.push(reply),
     )
-    assert.equal(proxy.sessions.size, 0)
-    assert.equal(proxy.clientEndpoint.connections.size, 0)
+    assert.equal(relay.sessions.size, 0)
+    assert.equal(relay.clientEndpoint.connections.size, 0)
     assert.equal(replies[0].data, '37')
   } finally {
-    await proxy.close()
+    await relay.close()
   }
 })
 test('concurrent verification is bounded and failures do not leak exception text', async () => {

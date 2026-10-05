@@ -71,6 +71,15 @@ pnpm add @nethernet-proxy/relay
 
 ## 基本的な使い方
 
+workspaceのrelay単体の起動例は `main.ts` です。rootから以下で起動できます。
+
+```sh
+pnpm --filter @nethernet-proxy/relay dev
+```
+
+`packages/relay/` 内では `pnpm dev`。`BDS_URL` / `PROXY_PORT` / `PROXY_WEBRTC_BACKEND` で設定できます。
+identity helperの既定保存先は実行directoryの `cache/` です。
+
 `Relay` がpacket中継を、`TransportGateway` がHTTP signalingを扱います。
 旧名 `TransportProxy` / `ProxyOptions` / `ProxyEvents` は互換aliasとして残しています。
 Playerと参加・退出event、gatewayの同時生成が必要なら [上位package](../proxy/README.md) を使ってください。

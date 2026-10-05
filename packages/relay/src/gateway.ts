@@ -4,7 +4,7 @@ import type { IncomingMessage, ServerResponse } from 'node:http'
 import { NetherNetGateway } from 'nethernet-gateway'
 import type { VerifyClientToken } from 'nethernet-gateway'
 import { SignalType } from 'nethernet'
-import type { Relay } from './proxy'
+import type { Relay } from './relay'
 
 export interface TransportGatewayOptions {
   offerTimeoutMs?: number

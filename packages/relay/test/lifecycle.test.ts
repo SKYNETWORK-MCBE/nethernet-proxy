@@ -3,49 +3,49 @@ import assert from 'node:assert/strict'
 import { createServer } from 'node:http'
 import type { AddressInfo } from 'node:net'
 import { SignalStructure, SignalType } from 'nethernet'
-import { TransportProxy } from '../src/proxy'
+import { Relay } from '../src/relay'
 import { serverIdentity, plainSdp } from './helpers/sdp'
 import { sdpHash } from '../src/sdp-verifier'
 import { createServerConnector, trackConnectionClose } from '../src/transport'
 import { identity } from './helpers/sdp'
 
 const signal = (id: bigint) => new SignalStructure(SignalType.ConnectRequest, id, plainSdp, 2n)
-test('pending admission, timeout and proxy shutdown release reservations without allocating peers', async () => {
+test('pending admission, timeout and relay shutdown release reservations without allocating peers', async () => {
   const reasons: string[] = []
-  const proxy = new TransportProxy({
+  const relay = new Relay({
     serverUrl: 'http://127.0.0.1:1',
     clientSideIdentity: serverIdentity,
     maxPendingOffers: 1,
     offerTimeoutMs: 30,
     verifyOffer: () => new Promise(() => {}),
   })
-  proxy.on('signalingRejected', (_, reason) => {
+  relay.on('signalingRejected', (_, reason) => {
     reasons.push(reason)
   })
   const replies: string[] = []
-  const first = proxy.clientEndpoint.handleOffer(signal(1n), (reply) => {
+  const first = relay.clientEndpoint.handleOffer(signal(1n), (reply) => {
     replies.push(reply.data)
   })
-  await proxy.clientEndpoint.handleOffer(signal(2n), (reply) => {
+  await relay.clientEndpoint.handleOffer(signal(2n), (reply) => {
     replies.push(reply.data)
   })
   assert.deepEqual(reasons, ['admission_limit'])
   await first
   assert.deepEqual(reasons, ['admission_limit', 'offer_timeout'])
-  assert.equal(proxy.sessions.size, 0)
-  assert.equal(proxy.clientEndpoint.connections.size, 0)
-  const third = proxy.clientEndpoint.handleOffer(signal(3n), () => {})
-  await proxy.close()
+  assert.equal(relay.sessions.size, 0)
+  assert.equal(relay.clientEndpoint.connections.size, 0)
+  const third = relay.clientEndpoint.handleOffer(signal(3n), () => {})
+  await relay.close()
   await third
   assert.equal(reasons.length, 2)
 })
 test('abort and close during verification cannot create a late session, even if verifier later resolves', async () => {
   let release!: (
     result: Awaited<
-      ReturnType<NonNullable<ConstructorParameters<typeof TransportProxy>[0]['verifyOffer']>>
+      ReturnType<NonNullable<ConstructorParameters<typeof Relay>[0]['verifyOffer']>>
     >,
   ) => void
-  const proxy = new TransportProxy({
+  const relay = new Relay({
     serverUrl: 'http://127.0.0.1:1',
     clientSideIdentity: serverIdentity,
     verifyOffer: () =>
@@ -54,7 +54,7 @@ test('abort and close during verification cannot create a late session, even if 
       }),
   })
   const controller = new AbortController()
-  const offer = proxy.clientEndpoint.handleOffer(
+  const offer = relay.clientEndpoint.handleOffer(
     signal(1n),
     () => assert.fail('aborted request must not respond'),
     undefined,
@@ -72,15 +72,15 @@ test('abort and close during verification cannot create a late session, even if 
     expiresAt: Date.now() / 1000 + 600,
   })
   await new Promise((resolve) => setTimeout(resolve, 10))
-  assert.equal(proxy.sessions.size, 0)
-  assert.equal(proxy.clientEndpoint.connections.size, 0)
-  await proxy.close()
+  assert.equal(relay.sessions.size, 0)
+  assert.equal(relay.clientEndpoint.connections.size, 0)
+  await relay.close()
 })
 
 test('SDP size and session limits are enforced before peer allocation', async () => {
   let verifies = 0
   const reasons: string[] = []
-  const proxy = new TransportProxy({
+  const relay = new Relay({
     serverUrl: 'http://127.0.0.1:1',
     clientSideIdentity: serverIdentity,
     maxSessions: 1,
@@ -90,22 +90,22 @@ test('SDP size and session limits are enforced before peer allocation', async ()
       return new Promise(() => {})
     },
   })
-  proxy.on('signalingRejected', (_, reason) => {
+  relay.on('signalingRejected', (_, reason) => {
     reasons.push(reason)
   })
   try {
     const oversized = signal(1n)
     oversized.data = 'v=0\r\n' + 'x'.repeat(256 * 1024)
-    await proxy.clientEndpoint.handleOffer(oversized, () => {})
+    await relay.clientEndpoint.handleOffer(oversized, () => {})
     assert.equal(verifies, 0)
-    const pending = proxy.clientEndpoint.handleOffer(signal(2n), () => {})
-    await proxy.clientEndpoint.handleOffer(signal(3n), () => {})
+    const pending = relay.clientEndpoint.handleOffer(signal(2n), () => {})
+    await relay.clientEndpoint.handleOffer(signal(3n), () => {})
     assert.equal(verifies, 1)
     assert.deepEqual(reasons, ['sdp_limit', 'admission_limit'])
-    await proxy.close()
+    await relay.close()
     await pending
   } finally {
-    await proxy.close()
+    await relay.close()
   }
 })
 
@@ -119,7 +119,7 @@ test(
       res.end()
     })
     await new Promise<void>((resolve) => http.listen(0, '127.0.0.1', resolve))
-    const proxy = new TransportProxy({
+    const relay = new Relay({
       serverUrl: `http://127.0.0.1:${(http.address() as AddressInfo).port}`,
       clientSideIdentity: serverIdentity,
       verifyOffer: async (sdp) => ({
@@ -135,14 +135,14 @@ test(
     let opened = 0
     let closed = 0
     let ready = 0
-    proxy.on('sessionOpen', () => {
+    relay.on('sessionOpen', () => {
       opened++
     })
-    proxy.on('sessionClose', (session) => {
+    relay.on('sessionClose', (session) => {
       closed++
       assert.ok(session.closed)
     })
-    proxy.on('sessionReady', () => {
+    relay.on('sessionReady', () => {
       ready++
     })
     const until = async (predicate: () => boolean) => {
@@ -156,7 +156,7 @@ test(
       for (let i = 0; i < 3; i++) {
         let peerClosed = () => Promise.resolve()
         const client = createServerConnector(
-          proxy.clientEndpoint.networkId,
+          relay.clientEndpoint.networkId,
           { identity: await identity(), responseTimeoutMs: 1000, inactivityTimeoutMs: 1000 },
           (connection) => {
             peerClosed = trackConnectionClose(connection)
@@ -166,16 +166,16 @@ test(
         client.signalHandler = (request) => {
           request.networkId = client.networkId
           if (request.type !== SignalType.ConnectRequest) return
-          void proxy.clientEndpoint.handleOffer(request, (reply) => {
-            reply.networkId = proxy.clientEndpoint.networkId
+          void relay.clientEndpoint.handleOffer(request, (reply) => {
+            reply.networkId = relay.clientEndpoint.networkId
             client.handleSignal(reply)
           })
         }
         try {
           client.connect()
           await until(() => closed === i + 1)
-          assert.equal(proxy.sessions.size, 0)
-          assert.equal(proxy.clientEndpoint.connections.size, 0)
+          assert.equal(relay.sessions.size, 0)
+          assert.equal(relay.clientEndpoint.connections.size, 0)
         } finally {
           const socketClosed = new Promise<void>((resolve) => client.socket.once('close', resolve))
           client.close()
@@ -186,7 +186,7 @@ test(
       assert.equal(closed, 3)
       assert.equal(ready, 0)
     } finally {
-      await proxy.close()
+      await relay.close()
       http.closeAllConnections()
       await new Promise<void>((resolve) => http.close(() => resolve()))
     }

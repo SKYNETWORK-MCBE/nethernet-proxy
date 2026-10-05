@@ -13,7 +13,7 @@ import {
   useHttpSignaling,
   trackConnectionClose,
 } from '../src/transport'
-import { TransportProxy } from '../src/proxy'
+import { Relay } from '../src/relay'
 import { TransportGateway } from '../src/gateway'
 import { createSdpVerifier } from '../src/sdp-verifier'
 import { decodePayload, encodePayload, fragmentPayload, Reassembler } from '../src/framing'
@@ -83,7 +83,7 @@ for (const gatewayMode of [false, true])
       })
       await new Promise<void>((resolve) => http.listen(0, '127.0.0.1', resolve))
       const url = `http://127.0.0.1:${(http.address() as AddressInfo).port}`
-      const proxy = new TransportProxy({
+      const relay = new Relay({
         serverUrl: url,
         clientSideIdentity: serverIdentity,
         verifyOffer: createSdpVerifier({
@@ -93,16 +93,16 @@ for (const gatewayMode of [false, true])
       const opened: Session[] = []
       const ready: Session[] = []
       const closed: string[] = []
-      proxy.on('sessionOpen', (session) => {
+      relay.on('sessionOpen', (session) => {
         opened.push(session)
       })
-      proxy.on('sessionReady', (session) => {
+      relay.on('sessionReady', (session) => {
         ready.push(session)
       })
-      proxy.on('sessionClose', (session) => {
+      relay.on('sessionClose', (session) => {
         closed.push(session.connectionId)
       })
-      const gateway = gatewayMode ? new TransportGateway(proxy) : undefined
+      const gateway = gatewayMode ? new TransportGateway(relay) : undefined
       if (gateway) await gateway.listen(0, '127.0.0.1')
       const clients: Player[] = []
       async function player(): Promise<Player> {
@@ -110,7 +110,7 @@ for (const gatewayMode of [false, true])
         let connection!: Connection
         let connectionClosed = () => Promise.resolve()
         const client = createServerConnector(
-          proxy.clientEndpoint.networkId,
+          relay.clientEndpoint.networkId,
           { identity: await identity(), responseTimeoutMs: 15000, inactivityTimeoutMs: 15000 },
           (createdConnection) => {
             connection = createdConnection
@@ -134,16 +134,16 @@ for (const gatewayMode of [false, true])
           client.signalHandler = (signal) => {
             signal.networkId = client.networkId
             const respond = (reply: typeof signal) => {
-              reply.networkId = proxy.clientEndpoint.networkId
+              reply.networkId = relay.clientEndpoint.networkId
               client.handleSignal(reply)
             }
             if (signal.type === SignalType.ConnectRequest) {
-              void proxy.clientEndpoint.handleOffer(signal, respond)
+              void relay.clientEndpoint.handleOffer(signal, respond)
               signal.data = 'v=0\r\n'
               signal.connectionId = 666n
               signal.networkId = 777n
             } else if (signal.type === SignalType.CandidateAdd)
-              void proxy.clientEndpoint.handleCandidate(signal, respond)
+              void relay.clientEndpoint.handleCandidate(signal, respond)
           }
         client.connect()
         const result = {
@@ -166,7 +166,7 @@ for (const gatewayMode of [false, true])
         const [a, b] = await Promise.all([player(), player()])
         await until(() => ready.length === 2)
         assert.equal(opened.length, 2)
-        assert.equal(proxy.sessions.size, 2)
+        assert.equal(relay.sessions.size, 2)
         for (const p of [a, b]) {
           const input = frames([packet(999 | 1024, Buffer.from([p === a ? 41 : 42]))], 2)
           for (const frame of input) p.connection.reliable!.send(frame as Buffer<ArrayBuffer>)
@@ -181,10 +181,10 @@ for (const gatewayMode of [false, true])
         }
         assert.equal(new Set(serverReceived.map((x) => x.networkId)).size, 2)
         const contexts: PacketContext[] = []
-        const stop = proxy
+        const stop = relay
           .packetHandler(9, { direction: 'c2s' })
           .before(() => packet(9, Buffer.from([77])))
-        proxy.packetHandler(9).after((_, ctx) => {
+        relay.packetHandler(9).after((_, ctx) => {
           contexts.push(ctx)
         })
         for (const p of [a, b]) {
@@ -202,15 +202,15 @@ for (const gatewayMode of [false, true])
           2,
         )
         // The synthetic echo server returns fixture NetworkSettings (not a Bedrock login).
-        const active = [...proxy.sessions.values()]
+        const active = [...relay.sessions.values()]
         for (let i = 0; i < active.length; i++) {
-          const accepted = proxy.clientEndpoint.connections.get(BigInt(active[i].connectionId))!
+          const accepted = relay.clientEndpoint.connections.get(BigInt(active[i].connectionId))!
           let unexpected = 0
           const original = accepted.rtcConnection.addIceCandidate.bind(accepted.rtcConnection)
           accepted.rtcConnection.addIceCandidate = async () => {
             unexpected++
           }
-          await proxy.clientEndpoint.handleCandidate({
+          await relay.clientEndpoint.handleCandidate({
             type: SignalType.CandidateAdd,
             connectionId: accepted.address,
             networkId: 777n,
@@ -221,7 +221,7 @@ for (const gatewayMode of [false, true])
           assert.equal(active[i].verifiedSignaling?.xuid, '123456789')
         }
         for (const [i, p] of [a, b].entries()) {
-          const handle = [...proxy.sessions.values()].find(
+          const handle = [...relay.sessions.values()].find(
             (x) => x.networkId === p.client.networkId.toString(),
           )!
           const settings = Buffer.from([1, 0, i, 0]) // Different algorithms on the two sessions.
@@ -236,7 +236,7 @@ for (const gatewayMode of [false, true])
           assert.equal(p.echoes[0].frame[1], i)
           p.echoes.length = 0
           assert.equal(
-            proxy.sendToClient(handle.connectionId, packet(999), { channel: 'unreliable' }),
+            relay.sendToClient(handle.connectionId, packet(999), { channel: 'unreliable' }),
             'sent',
           )
           await until(() => p.echoes.length === 1)
@@ -246,11 +246,11 @@ for (const gatewayMode of [false, true])
             packet(999),
           )
         }
-        const aSession = [...proxy.sessions.values()].find(
+        const aSession = [...relay.sessions.values()].find(
           (x) => x.networkId === a.client.networkId.toString(),
         )!
         await aSession.close('test_one_player_closed')
-        assert.equal(proxy.sessions.size, 1)
+        assert.equal(relay.sessions.size, 1)
         assert.ok(aSession.closed)
         assert.equal(closed.length, 1)
         b.echoes.length = 0
@@ -270,17 +270,17 @@ for (const gatewayMode of [false, true])
         c.connection.reliable!.send(unnegotiated as Buffer<ArrayBuffer>)
         await until(() => c.echoes.length === 1)
         assert.deepEqual(c.echoes[0].frame, unnegotiated)
-        assert.equal(proxy.sessions.size, 2)
+        assert.equal(relay.sessions.size, 2)
       } finally {
         await Promise.all(clients.map((p) => p.close()))
         await gateway?.close()
-        await proxy.close()
+        await relay.close()
         serverEndpoint.close()
         await Promise.all(serverConnectionCloses.map((done) => done()))
         http.closeAllConnections()
         await new Promise<void>((resolve) => http.close(() => resolve()))
       }
-      assert.equal(proxy.sessions.size, 0)
+      assert.equal(relay.sessions.size, 0)
       await until(
         () =>
           process.getActiveResourcesInfo().filter((name) => name === 'UDPWrap').length <= baseline,

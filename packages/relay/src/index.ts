@@ -1,4 +1,4 @@
-export { Relay } from './proxy'
+export { Relay } from './relay'
 export { TransportGateway } from './gateway'
 export type { TransportGatewayOptions } from './gateway'
 export { createSdpVerifier, SdpVerificationError } from './sdp-verifier'

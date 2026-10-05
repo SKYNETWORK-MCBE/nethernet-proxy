@@ -31,3 +31,4 @@ pnpm test
 ```
 
 `pnpm dev` はrootの `main.ts` を実行します。
+relay単体の起動例は `packages/relay/main.ts`。`pnpm --filter @nethernet-proxy/relay dev` で実行します。

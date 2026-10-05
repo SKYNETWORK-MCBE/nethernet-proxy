@@ -4,7 +4,7 @@ import type { AddressInfo } from 'node:net'
 import { createServer } from 'node:http'
 import { TransportGateway } from '../src/gateway'
 import type { TransportGatewayOptions } from '../src/gateway'
-import { TransportProxy } from '../src/proxy'
+import { Relay } from '../src/relay'
 import { sdpHash } from '../src/sdp-verifier'
 import { offer, serverIdentity } from './helpers/sdp'
 
@@ -21,7 +21,7 @@ async function setup(
   const gate = new Promise<void>((resolve) => {
     release = resolve
   })
-  const proxy = new TransportProxy({
+  const relay = new Relay({
     clientSideIdentity: serverIdentity,
     serverUrl,
     verifyOffer: async (sdp) => {
@@ -38,11 +38,11 @@ async function setup(
       })
     },
   })
-  const gateway = new TransportGateway(proxy, { offerTimeoutMs, configure })
+  const gateway = new TransportGateway(relay, { offerTimeoutMs, configure })
   await gateway.listen(0, '127.0.0.1')
   const url = `http://127.0.0.1:${(gateway.server!.address() as AddressInfo).port}`
   return {
-    proxy,
+    proxy: relay,
     gateway,
     url,
     release,
@@ -51,7 +51,7 @@ async function setup(
       release()
       gateway.server!.closeAllConnections()
       await gateway.close()
-      await proxy.close()
+      await relay.close()
     },
   }
 }

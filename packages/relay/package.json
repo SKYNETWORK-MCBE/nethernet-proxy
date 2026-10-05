@@ -20,6 +20,7 @@
     "access": "public"
   },
   "scripts": {
+    "dev": "nub main.ts",
     "build": "vp pack",
     "test": "vp test run",
     "check": "tsc --noEmit",
