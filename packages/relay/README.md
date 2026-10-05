@@ -63,7 +63,7 @@ BDSの `server-udp-ports` はBDS側のUDP割り当て、gatewayの `listen(port,
 
 ## インストール
 
-Node.js `^24.11.0 || >=26.0.0` とNetherNet対応の接続先serverが必要です。
+Node.js 26.x とNetherNet対応の接続先serverが必要です。
 
 ```sh
 pnpm add @nethernet-proxy/relay

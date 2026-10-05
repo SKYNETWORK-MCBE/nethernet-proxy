@@ -36,13 +36,13 @@
     "snappyjs": "0.7.0"
   },
   "devDependencies": {
-    "@types/node": "^24.0.0",
+    "@types/node": "^26.0.0",
     "@types/snappyjs": "^0.7.1",
     "jose": "^6.2.12",
     "typescript": "^6.0.3",
     "vite-plus": "^1.0.0"
   },
   "engines": {
-    "node": "^24.11.0 || >=26.0.0"
+    "node": "^26.0.0"
   }
 }

@@ -1,10 +1,9 @@
 import type { AddressInfo } from 'node:net'
 import {
-  TransportProxy,
-  TransportGateway,
+  NetherNetProxy,
   proxyServerIdentity,
   authenticateTransport,
-} from './packages/relay/src/index'
+} from './packages/proxy/src/index'
 
 const serverUrl = process.env.BDS_URL ?? 'http://127.0.0.1:19132'
 const webrtcBackend = process.env.PROXY_WEBRTC_BACKEND ?? 'werift'
@@ -14,7 +13,7 @@ const clientSideIdentity = await proxyServerIdentity()
 const status = await fetch(new URL('/v1/join', serverUrl), { signal: AbortSignal.timeout(5000) })
 if (!status.ok) throw new Error('server_status_failed')
 const serverSideIdentity = await authenticateTransport(String((await status.json()).version))
-const proxy = new TransportProxy({
+const proxy = new NetherNetProxy({
   serverUrl,
   clientSideIdentity,
   serverSideIdentity,
@@ -32,19 +31,26 @@ proxy.on('sessionClose', (session, reason) =>
     JSON.stringify({ event: 'session_close', connectionId: session.connectionId, reason }),
   ),
 )
-const gateway = new TransportGateway(proxy)
+proxy.on('playerJoin', ({ connectionId, identity }) =>
+  console.log(JSON.stringify({ event: 'player_join', connectionId, identity })),
+)
+proxy.on('playerSpawn', ({ player }) =>
+  console.log(JSON.stringify({ event: 'player_spawn', connectionId: player.connectionId })),
+)
+proxy.on('playerLeave', ({ connectionId, reason }) =>
+  console.log(JSON.stringify({ event: 'player_leave', connectionId, reason })),
+)
 try {
-  await gateway.listen(Number(process.env.PROXY_PORT ?? 19134), '0.0.0.0')
+  await proxy.listen(Number(process.env.PROXY_PORT ?? 19134), '0.0.0.0')
 } catch (error) {
   await proxy.close()
   throw error
 }
 console.log(
-  `NetherNet gateway: http://127.0.0.1:${(gateway.server!.address() as AddressInfo).port}`,
+  `NetherNet gateway: http://127.0.0.1:${(proxy.gateway!.server!.address() as AddressInfo).port}`,
 )
 async function stop() {
-  gateway.server?.closeAllConnections()
-  await Promise.all([gateway.close(), proxy.close()])
+  await proxy.close()
 }
 process.once('SIGINT', () => {
   void stop()

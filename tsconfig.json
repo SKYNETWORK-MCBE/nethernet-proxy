@@ -3,8 +3,13 @@
     "target": "ES2024",
     "module": "Preserve",
     "moduleResolution": "Bundler",
+    "paths": {
+      "@nethernet-proxy/emitter": ["./packages/emitter/src/index.ts"],
+      "@nethernet-proxy/relay": ["./packages/relay/src/index.ts"]
+    },
     "strict": true,
     "isolatedModules": true,
+    "experimentalDecorators": true,
     "verbatimModuleSyntax": true,
     "esModuleInterop": true,
     "skipLibCheck": true,

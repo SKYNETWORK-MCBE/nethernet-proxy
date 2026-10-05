@@ -17,7 +17,7 @@
   },
   "devDependencies": {
     "@nubjs/nub": "^0.9.5",
-    "@types/node": "^24.0.0",
+    "@types/node": "^26.0.0",
     "typescript": "^6.0.3",
     "vite-plus": "^1.0.0"
   },
@@ -26,10 +26,15 @@
       "name": "pnpm",
       "version": "12.9.1",
       "onFail": "download"
+    },
+    "runtime": {
+      "name": "node",
+      "version": "26.10.0",
+      "onFail": "download"
     }
   },
   "engines": {
-    "node": "^24.11.0 || >=26.0.0"
+    "node": "^26.0.0"
   },
   "packageManager": "pnpm@12.9.1"
 }

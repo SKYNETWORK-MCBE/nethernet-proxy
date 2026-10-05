@@ -1,0 +1,44 @@
+{
+  "name": "@nethernet-proxy/proxy",
+  "version": "0.0.0",
+  "description": "High-level NetherNet proxy with player lifecycle events",
+  "license": "MIT",
+  "files": [
+    "dist",
+    "README.md",
+    "THIRD_PARTY_NOTICES.md"
+  ],
+  "type": "module",
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.ts",
+      "import": "./dist/index.js"
+    }
+  },
+  "publishConfig": {
+    "access": "public"
+  },
+  "scripts": {
+    "build": "vp pack",
+    "test": "vp test run",
+    "check": "tsc --noEmit",
+    "prepack": "pnpm build"
+  },
+  "dependencies": {
+    "@bedrock-apis/carolina-authentication": "1.0.0-beta.3",
+    "@nethernet-proxy/emitter": "workspace:*",
+    "@nethernet-proxy/relay": "workspace:*",
+    "@serenityjs/binarystream": "^3.1.0",
+    "@serenityjs/protocol": "0.8.21",
+    "@serenityjs/raknet": "0.8.21",
+    "nethernet-gateway": "^0.2.0"
+  },
+  "devDependencies": {
+    "@types/node": "^26.0.0",
+    "typescript": "^6.0.3",
+    "vite-plus": "^1.0.0"
+  },
+  "engines": {
+    "node": "^26.0.0"
+  }
+}

@@ -1,6 +1,12 @@
 # @nethernet-proxy/proxy 実装計画
 
-状態: 計画。上位packageはまだ実装していない。
+状態: 初期実装済み。公開クラスは `NetherNetProxy`、raw中継は `Relay`（`TransportProxy` は互換alias）。
+gatewayは同時生成・無効化・差し込みに対応。使い方は [proxy README](../packages/proxy/README.md) を参照。
+不正順序・ID不一致・lifecycle decode失敗は診断してPlayer生成を断念し、転送を継続する。
+実BDS + 実clientの検証、購読連動の追加機能、respawn等は未実施・未実装。
+Node.js 26.xに統一。Login client dataの署名検証と、Join / Leave / PlayerでのSerenity `Readonly<Partial<ClientData>>` 公開を実装。
+raw中継を保ち、通知のみLoginSuccessと検証完了を待つ。timeout・切断時の扱いはproxy READMEを参照。
+client data取得はOnlineのみ。既定で必須（取得失敗時はエラーとして切断）、`requireClientData: false` なら取得失敗時に空オブジェクトを公開する。型引数は使わない。
 
 ## 目的と分担
 
@@ -23,7 +29,7 @@ Login解析だけに用途を限定せず、今後packet操作、chat、表示�
 ## 最初の実装範囲
 
 1. `packages/proxy` に `@nethernet-proxy/proxy` を作る。
-2. `Proxy` は既存の `TransportProxy` を受け取って高レベルの状態を管理する。
+2. `NetherNetProxy` はoptionsから `Relay` を生成し、高レベルの状態を管理する。既存Relayの差し込みは行わない。
 3. 接続中の情報を内部に保持し、**SetLocalPlayerAsInitializedを確認した時に初めてPlayerを生成する**。
 4. 参加・初回spawn・退出eventとPlayerの取得を実装する。
 5. 後続メソッド用の共通packet送信・状態チェックを整えるが、chat等の機能一式は最初の実装に含めない。
@@ -31,9 +37,9 @@ Login解析だけに用途を限定せず、今後packet操作、chat、表示�
 初期案の利用イメージ:
 
 ```ts
-import { Proxy } from '@nethernet-proxy/proxy'
+import { NetherNetProxy } from '@nethernet-proxy/proxy'
 
-const proxy = new Proxy({ relay })
+const proxy = new NetherNetProxy(relayOptions)
 
 proxy.on('playerJoin', (event) => {
   // Player生成前。session、identity、取得済み情報を利用できる。
@@ -143,8 +149,8 @@ on / before / once の登録・解除・消費
 
 ## relayに必要な拡張
 
-現状のpacket hookは全session共通。上位packageの初回追跡を常設すると、参加済みsessionまで解析される。
-上位packageの実装前に、session単位の購読を追加する。
+session単位の購読を実装済み。以下はその要件。
+全session共通の初回追跡を常設せず、参加済みsessionをrawへ戻す。
 
 - sessionごとのbefore / after需要とsnapshotを管理する。
 - 全session共通hookとsession固有hookの実行順序・重複・解除を定義する。
@@ -156,7 +162,7 @@ on / before / once の登録・解除・消費
 
 ## 検証と実装順序
 
-1. 独立emitterを実装・検証（今回の実装範囲）。
+1. 独立emitterを実装・検証。
 2. session単位のrelay hookと既存raw経路の回帰test。
 3. 上位package、内部接続状態、Player、3つのlifecycle event。
 4. packet再生成をしない観測と、初期化後のraw復帰を検証。
