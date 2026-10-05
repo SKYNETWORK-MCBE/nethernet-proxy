@@ -23,6 +23,7 @@ export type BeforeCallback = (
 export type AfterCallback = (buffer: Buffer, context: PacketContext) => void
 export interface PacketSubscriptionOptions {
   direction?: Direction
+  channel?: Channel
 }
 export interface PacketSelector {
   before(callback: BeforeCallback): () => void
@@ -42,9 +43,10 @@ export interface Session {
   readonly server: SessionPeer
   readonly ready: boolean
   readonly closed: boolean
+  packetHandler(id: number, options?: PacketSubscriptionOptions): PacketSelector
   close(reason?: string): Promise<void>
 }
-export interface ProxyEvents {
+export interface RelayEvents {
   sessionOpen: [session: Session]
   sessionReady: [session: Session]
   sessionClose: [session: Session, reason: string]
@@ -58,7 +60,7 @@ export interface RelayLimits {
   fragmentSize: number
   fragmentTimeoutMs: number
 }
-export interface ProxyOptions extends NetherNetServerOptions, Partial<RelayLimits> {
+export interface RelayOptions extends NetherNetServerOptions, Partial<RelayLimits> {
   serverUrl: string | URL
   /** Proxy operator identity used to sign answers sent to the client, not the player's identity. */
   clientSideIdentity: Identity
@@ -76,3 +78,6 @@ export interface ProxyOptions extends NetherNetServerOptions, Partial<RelayLimit
   offerTimeoutMs?: number
   log?: Log
 }
+/** @deprecated Use RelayOptions / RelayEvents. */
+export type ProxyOptions = RelayOptions
+export type ProxyEvents = RelayEvents

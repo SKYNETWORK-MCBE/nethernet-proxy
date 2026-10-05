@@ -71,12 +71,14 @@ pnpm add @nethernet-proxy/relay
 
 ## 基本的な使い方
 
-`TransportProxy` がpacket中継を、`TransportGateway` がHTTP signalingを扱います。
+`Relay` がpacket中継を、`TransportGateway` がHTTP signalingを扱います。
+旧名 `TransportProxy` / `ProxyOptions` / `ProxyEvents` は互換aliasとして残しています。
+Playerと参加・退出event、gatewayの同時生成が必要なら [上位package](../proxy/README.md) を使ってください。
 以下のpacket処理例では、別途 `@serenityjs/protocol` をインストールしてください。
 
 ```ts
 import {
-  TransportProxy,
+  Relay,
   TransportGateway,
   proxyServerIdentity,
   authenticateTransport,
@@ -86,7 +88,7 @@ import { Packet, TextPacket } from '@serenityjs/protocol'
 const serverUrl = 'http://127.0.0.1:19132'
 const response = await fetch(new URL('/v1/join', serverUrl))
 const status = await response.json()
-const proxy = new TransportProxy({
+const proxy = new Relay({
   serverUrl,
   clientSideIdentity: await proxyServerIdentity(),
   serverSideIdentity: await authenticateTransport(String(status.version)),
@@ -129,9 +131,13 @@ await proxy.close()
 
 ## Packet hook
 
-`packetHandler(id, { direction? })` はselectorだけを作ります。
+`packetHandler(id, { direction?, channel? })` はselectorだけを作ります。
 `before()` / `after()` で実際に登録し、何度呼んでも安全な解除関数を返します。
-IDは0〜1023の整数。direction省略は両方向、登録は全session共通です。
+IDは0〜1023の整数。direction省略は両方向、channel省略は両channelです。
+relayでの登録は全session共通、`session.packetHandler(...)` での登録はそのsessionだけです。
+同じpacketの各phaseでは全session共通hook → session固有hookの順で実行します。
+同じcallbackの登録もそれぞれ実行され、返された解除関数で独立して解除できます。
+session終了時に固有hookを解放し、最後の解除後は次batchからそのsessionのraw経路へ戻ります。
 
 | direction内の登録 | 動作                                                                    |
 | ----------------- | ----------------------------------------------------------------------- |
@@ -196,7 +202,7 @@ sessionは `connectionId / networkId / verifiedSignaling / client / server / rea
 `clientSideIdentity` はClientへ返すanswerに署名するProxyのoperator identityです。
 `serverSideIdentity` もProxy自身のidentityで、BDSへ送るofferに使用します。
 
-`ProxyOptions` にはclient側の入口用にnethernetの `ServerOptions` も渡せます。
+`RelayOptions` にはclient側の入口用にnethernetの `ServerOptions` も渡せます。
 
 | option                             | 既定                                                             |
 | ---------------------------------- | ---------------------------------------------------------------- |

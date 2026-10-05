@@ -13,8 +13,8 @@ import { createSdpVerifier } from './sdp-verifier'
 import type { VerifiedSdpIdentity } from './sdp-verifier'
 import type {
   PacketSubscriptionOptions,
-  ProxyEvents,
-  ProxyOptions,
+  RelayEvents,
+  RelayOptions,
   SendOptions,
   Session,
   RelayLimits,
@@ -27,18 +27,18 @@ interface Runtime {
   clientConnectionClosed: () => Promise<void>
   serverConnectionClosed?: () => Promise<void>
 }
-export class TransportProxy extends EventEmitter<ProxyEvents> {
+export class Relay extends EventEmitter<RelayEvents> {
   readonly serverUrl: URL
   readonly clientEndpoint: ClientEndpoint
   readonly log: Log
   private readonly hooks = new PacketHooks()
   private readonly active = new Map<bigint, Runtime>()
   private readonly limits: RelayLimits
-  private readonly options: ProxyOptions
+  private readonly options: RelayOptions
   private readonly closing = new Map<bigint, Promise<void>>()
   private stopped = false
   private shutdown?: Promise<void>
-  constructor(options: ProxyOptions) {
+  constructor(options: RelayOptions) {
     super()
     const {
       serverUrl,
@@ -112,10 +112,10 @@ export class TransportProxy extends EventEmitter<ProxyEvents> {
     if (!runtime) throw new Error('unknown_connection')
     return runtime.session
   }
-  private notify<K extends keyof ProxyEvents>(event: K, ...args: ProxyEvents[K]) {
+  private notify<K extends keyof RelayEvents>(event: K, ...args: RelayEvents[K]) {
     // Normal EventEmitter listener order/once/off, but a consumer exception must not leak sockets.
     try {
-      this.emit(event, ...(args as K extends keyof ProxyEvents ? ProxyEvents[K] : never))
+      this.emit(event, ...(args as K extends keyof RelayEvents ? RelayEvents[K] : never))
     } catch {
       this.log('event_listener_failed', { event })
     }

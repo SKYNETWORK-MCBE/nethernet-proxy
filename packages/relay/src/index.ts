@@ -1,4 +1,4 @@
-export { TransportProxy } from './proxy'
+export { Relay } from './proxy'
 export { TransportGateway } from './gateway'
 export type { TransportGatewayOptions } from './gateway'
 export { createSdpVerifier, SdpVerificationError } from './sdp-verifier'
@@ -19,4 +19,7 @@ export type {
   PacketSubscriptionOptions,
   ProxyOptions,
   ProxyEvents,
+  RelayOptions,
+  RelayEvents,
+  Log,
 } from './types'

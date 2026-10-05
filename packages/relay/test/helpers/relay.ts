@@ -10,14 +10,18 @@ export function packet(id = 9, body: Buffer = Buffer.from([42])) {
 export function frames(packets: Buffer[], fragmentSize = 10000) {
   return fragmentPayload(encodePayload(packets), fragmentSize)
 }
-export function setup(limits: Partial<RelayLimits> = {}) {
+export function setup(
+  limits: Partial<RelayLimits> = {},
+  connectionId = 1n,
+  hooks = new PacketHooks(),
+) {
   const sent: { direction: Direction; channel: Channel; frame: Buffer }[] = []
   const errors: string[] = []
   const reasons: string[] = []
   let ready = 0
   const endpoint = (direction: Direction) =>
     ({
-      address: direction === 's2c' ? 1n : 2n,
+      address: direction === 's2c' ? connectionId : connectionId + 1n,
       reliable: {
         readyState: 'open',
         bufferedAmount: 0,
@@ -31,7 +35,6 @@ export function setup(limits: Partial<RelayLimits> = {}) {
     }) as unknown as Connection
   const clientConnection = endpoint('s2c')
   const serverConnection = endpoint('c2s')
-  const hooks = new PacketHooks()
   const session = new ProxySession(
     clientConnection,
     '123',

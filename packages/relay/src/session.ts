@@ -7,11 +7,13 @@ import {
   preserveSubclients,
 } from './framing'
 import type { Compression, FramedPacket } from './framing'
-import type { HookSnapshot, PacketHooks } from './hooks'
+import { PacketHooks } from './hooks'
+import type { HookSnapshot } from './hooks'
 import type {
   Channel,
   Direction,
   PacketContext,
+  PacketSubscriptionOptions,
   RelayLimits,
   SendOptions,
   SendResult,
@@ -53,7 +55,7 @@ export const defaultLimits: RelayLimits = {
   fragmentTimeoutMs: 20000,
 }
 
-/** Per-player relay state. Transport creation/authentication belong to TransportProxy. */
+/** Per-player relay state. Transport creation/authentication belong to Relay. */
 export class ProxySession implements Session {
   readonly connectionId: string
   readonly client: Session['client']
@@ -70,15 +72,17 @@ export class ProxySession implements Session {
   private heldBytes = 0
   private heldMessages = 0
   private serverConnection: Connection | null = null
+  private readonly hooks: PacketHooks
   constructor(
     readonly clientConnection: Connection,
     readonly networkId: string | undefined,
     readonly verifiedSignaling: VerifiedSdpIdentity | undefined,
-    private readonly hooks: PacketHooks,
+    hooks: PacketHooks,
     private readonly limits: RelayLimits,
     private readonly callbacks: SessionCallbacks,
   ) {
     this.connectionId = clientConnection.address.toString()
+    this.hooks = new PacketHooks(hooks)
     this.client = Object.freeze({
       send: (buffer: Buffer, options?: SendOptions) => this.send('s2c', buffer, options),
     })
@@ -100,6 +104,10 @@ export class ProxySession implements Session {
   }
   close(reason = 'session_closed') {
     return this.callbacks.close(reason)
+  }
+  packetHandler(id: number, options?: PacketSubscriptionOptions) {
+    if (this.ended) throw new Error('session_closed')
+    return this.hooks.selector(id, options)
   }
   setServerConnection(serverConnection: Connection) {
     this.serverConnection = serverConnection
@@ -276,7 +284,7 @@ export class ProxySession implements Session {
         this.finishInjections(direction, channel)
       }
       if (state.remaining === null) {
-        state.hooks = this.hooks.snapshot(direction)
+        state.hooks = this.hooks.snapshot(direction, channel)
         state.compression = direction === 'c2s' ? this.compression.client : this.compression.server
         state.decode =
           state.hooks.beforeCount > 0 ||
@@ -425,6 +433,7 @@ export class ProxySession implements Session {
   dispose() {
     if (this.ended) return
     this.ended = true
+    this.hooks.clear()
     for (const dir of ['c2s', 's2c'] as const)
       for (const channel of ['reliable', 'unreliable'] as const) {
         const state = this.streams[dir][channel]

@@ -4,7 +4,7 @@ import type { IncomingMessage, ServerResponse } from 'node:http'
 import { NetherNetGateway } from 'nethernet-gateway'
 import type { VerifyClientToken } from 'nethernet-gateway'
 import { SignalType } from 'nethernet'
-import type { TransportProxy } from './proxy'
+import type { Relay } from './proxy'
 
 export interface TransportGatewayOptions {
   offerTimeoutMs?: number
@@ -23,10 +23,11 @@ export class TransportGateway extends NetherNetGateway {
   private activeRequests = new Set<AbortController>()
 
   constructor(
-    transport: TransportProxy,
+    readonly relay: Relay,
     { offerTimeoutMs = 25000, verifyClientToken, configure }: TransportGatewayOptions = {},
   ) {
-    super({ upstream: transport.serverUrl.toString(), verifyClientToken })
+    super({ upstream: relay.serverUrl.toString(), verifyClientToken })
+    const transport = relay
     if (!Number.isInteger(offerTimeoutMs) || offerTimeoutMs < 1)
       throw new Error('invalid_offer_timeout')
     configure?.(this)

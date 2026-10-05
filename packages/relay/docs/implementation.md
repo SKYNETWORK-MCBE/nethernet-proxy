@@ -6,7 +6,7 @@
 
 - `proxy.ts`：認証済みclient接続、sessionごとのserver接続生成、通常event、非同期終了。
 - `session.ts`：4stream（direction × channel）、queue、圧縮設定、順序制御。
-- `hooks.ts`：方向別登録数とID別callback一覧のcopy-on-write snapshot。
+- `hooks.ts`：direction / channel別登録数とID別callback一覧のcopy-on-write snapshot。全session共通とsession固有を合成・cache。
 - `framing.ts`：bounded VarUInt、batch、圧縮、fragment、subclient保持。
 - `gateway.ts`：HTTP signalingのmiddlewareと中止処理。
 - `transport.ts` / `raw-channels.ts`：nethernet 1.1.2のearly connection/channel adapter。
@@ -31,6 +31,8 @@ rootの `pnpm build` / `pnpm test` はworkspace内の各packageのscriptを実�
 ## 安全な切り替え
 
 各streamの最初のfragmentでhook一覧と圧縮状態をsnapshotする。
+各phaseは全session共通hook → session固有hookの順。重複登録は独立して実行・解除する。
+session終了で固有hookを解放し、最後の解除後はそのsessionだけ次batchからraw経路へ戻る。
 登録変更はcopy-on-writeのみで、受信時に全selectorを走査しない。
 途中でbeforeが追加されても既に転送したbatchは保持経路に変更しない。
 解除したcallbackは進行中batchでは引き続き実行される。batch内のcallback変更も次batchから。
