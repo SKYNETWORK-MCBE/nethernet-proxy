@@ -1,8 +1,8 @@
 import { performance } from 'node:perf_hooks'
 import type { Connection } from 'nethernet'
-import { ProxySession, defaultLimits } from '../src/session'
-import { PacketHooks } from '../src/hooks'
-import { encodePayload, fragmentPayload, uint } from '../src/framing'
+import { ProxySession, defaultLimits } from '../packages/relay/src/session'
+import { PacketHooks } from '../packages/relay/src/hooks'
+import { encodePayload, fragmentPayload, uint } from '../packages/relay/src/framing'
 
 const iterations = Number(process.env.BENCH_ITERATIONS ?? 20000)
 if (!Number.isSafeInteger(iterations) || iterations < 1) throw new Error('invalid_bench_iterations')

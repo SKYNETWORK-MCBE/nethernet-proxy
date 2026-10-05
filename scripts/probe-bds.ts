@@ -6,14 +6,20 @@ import {
   TransportGateway,
   authenticateTransport,
   proxyServerIdentity,
-} from '../src/index'
+} from '../packages/relay/src/index'
 import {
   createServerConnector,
   captureChannels,
   useHttpSignaling,
   trackConnectionClose,
-} from '../src/transport'
-import { decodePayload, encodePayload, fragmentPayload, Reassembler, uint } from '../src/framing'
+} from '../packages/relay/src/transport'
+import {
+  decodePayload,
+  encodePayload,
+  fragmentPayload,
+  Reassembler,
+  uint,
+} from '../packages/relay/src/framing'
 
 const url = process.env.BDS_URL ?? 'http://127.0.0.1:19132'
 const status = await fetch(new URL('/v1/join', url), { signal: AbortSignal.timeout(5000) })

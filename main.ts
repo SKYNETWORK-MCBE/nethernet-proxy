@@ -4,7 +4,7 @@ import {
   TransportGateway,
   proxyServerIdentity,
   authenticateTransport,
-} from './src/index'
+} from './packages/relay/src/index'
 
 const serverUrl = process.env.BDS_URL ?? 'http://127.0.0.1:19132'
 const webrtcBackend = process.env.PROXY_WEBRTC_BACKEND ?? 'werift'

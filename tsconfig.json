@@ -12,5 +12,6 @@
     "types": ["node"],
     "noEmit": true
   },
-  "include": ["main.ts", "src/**/*.ts", "scripts/**/*.ts", "test/**/*.ts", "vite.config.ts"]
+  "include": ["main.ts", "packages/**/*.ts", "scripts/**/*.ts", "vite.config.ts"],
+  "exclude": ["node_modules", "**/node_modules/**", "**/dist/**"]
 }

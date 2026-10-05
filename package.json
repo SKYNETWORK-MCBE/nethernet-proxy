@@ -1,48 +1,27 @@
 {
   "name": "nethernet-proxy",
   "version": "0.0.0",
-  "description": "NetherNet transport proxy with synchronous Bedrock packet hooks",
+  "private": true,
+  "description": "NetherNet proxy workspace",
   "keywords": [],
   "license": "MIT",
   "author": "",
-  "files": [
-    "dist",
-    "README.md",
-    "docs/implementation.md",
-    "docs/validation.md"
-  ],
   "type": "module",
-  "exports": {
-    ".": {
-      "types": "./dist/index.d.ts",
-      "import": "./dist/index.js"
-    }
-  },
   "scripts": {
     "dev": "nub main.ts",
-    "build": "vp pack",
-    "test": "vp test run",
+    "build": "pnpm --filter @nethernet-proxy/relay build",
+    "test": "pnpm --filter @nethernet-proxy/relay test",
     "check": "tsc --noEmit",
     "lint": "vp lint",
     "format": "vp fmt",
     "bench": "nub scripts/bench.ts",
-    "probe": "nub scripts/probe-bds.ts",
-    "prepack": "pnpm build"
-  },
-  "dependencies": {
-    "@bedrock-apis/carolina-authentication": "1.0.0-beta.3",
-    "@serenityjs/binarystream": "^3.1.0",
-    "@serenityjs/protocol": "^0.8.21",
-    "nethernet": "1.1.2",
-    "nethernet-gateway": "^0.2.0",
-    "prismarine-auth": "3.1.1",
-    "snappyjs": "0.7.0"
+    "probe": "nub scripts/probe-bds.ts"
   },
   "devDependencies": {
     "@nubjs/nub": "^0.9.5",
+    "@serenityjs/protocol": "^0.8.21",
     "@types/node": "^24.0.0",
-    "@types/snappyjs": "^0.7.1",
-    "jose": "^6.2.12",
+    "nethernet": "1.1.2",
     "typescript": "^6.0.3",
     "vite-plus": "^1.0.0"
   },
