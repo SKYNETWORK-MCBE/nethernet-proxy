@@ -25,7 +25,7 @@ Vite+内蔵のtsdownを `vp pack` で実行し、`packages/relay/vite.config.ts`
 ESM、型定義、source mapを `dist/` に出力し、依存packageは外部依存として維持する。
 TypeScriptの相対import / re-exportは拡張子なしとし、型チェックはBundler module resolutionを使う。
 実装とtestは `packages/relay/` に置き、`@nethernet-proxy/relay` として公開する。
-rootの `pnpm build` / `pnpm test` はrelay packageのscriptを実行する。
+rootの `pnpm build` / `pnpm test` はworkspace内の各packageのscriptを実行する。
 開発用の起動scriptはrootの `main.ts` に置き、`pnpm dev` でsourceを直接実行する。
 
 ## 安全な切り替え

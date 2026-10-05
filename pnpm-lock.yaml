@@ -173,15 +173,21 @@ importers:
       '@nubjs/nub':
         specifier: ^0.9.5
         version: 0.9.6
-      '@serenityjs/protocol':
-        specifier: ^0.8.21
-        version: 0.8.21
       '@types/node':
         specifier: ^24.0.0
         version: 24.19.1
-      nethernet:
-        specifier: 1.1.2
-        version: 1.1.2
+      typescript:
+        specifier: ^6.0.3
+        version: 6.0.3
+      vite-plus:
+        specifier: ^1.0.0
+        version: 1.0.0(@types/node@24.19.1)(@vitest/ui@5.0.1)(typescript@6.0.3)
+
+  packages/emitter:
+    devDependencies:
+      '@types/node':
+        specifier: ^24.0.0
+        version: 24.19.1
       typescript:
         specifier: ^6.0.3
         version: 6.0.3

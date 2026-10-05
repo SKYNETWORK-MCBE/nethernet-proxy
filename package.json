@@ -9,19 +9,15 @@
   "type": "module",
   "scripts": {
     "dev": "nub main.ts",
-    "build": "pnpm --filter @nethernet-proxy/relay build",
-    "test": "pnpm --filter @nethernet-proxy/relay test",
+    "build": "pnpm -r build",
+    "test": "pnpm -r test",
     "check": "tsc --noEmit",
     "lint": "vp lint",
-    "format": "vp fmt",
-    "bench": "nub scripts/bench.ts",
-    "probe": "nub scripts/probe-bds.ts"
+    "format": "vp fmt"
   },
   "devDependencies": {
     "@nubjs/nub": "^0.9.5",
-    "@serenityjs/protocol": "^0.8.21",
     "@types/node": "^24.0.0",
-    "nethernet": "1.1.2",
     "typescript": "^6.0.3",
     "vite-plus": "^1.0.0"
   },

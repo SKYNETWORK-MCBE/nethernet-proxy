@@ -55,7 +55,7 @@ hook未登録・圧縮交渉済みなら、packetを解凍・解析せず元fram
 | `prismarine-auth`                   | Proxy用アカウントのMicrosoft / Xbox / Minecraft認証。取得したMinecraft tokenからmultiplayer session tokenを得るHTTP処理は `src/auth.ts` が担当 |
 | Node.js `node:zlib` / `snappyjs`    | Deflate / Snappyの圧縮・解凍アルゴリズム。batch構造・圧縮header・適用タイミングは独自実装                                                      |
 | Node.js `node:crypto`               | 鍵生成、hash、署名などの暗号処理。identity token / SDP署名の形式は独自に組み立て                                                               |
-| `@serenityjs/protocol`              | 利用側hookでの各Bedrock packet bodyのdeserialize / serialize。例・probe・testで使用                                                            |
+| `@serenityjs/protocol`              | 利用側hookでの各Bedrock packet bodyのdeserialize / serialize。例・testで使用                                                                   |
 | BDS                                 | game protocolの処理、world・game logic                                                                                                         |
 
 UDP socketとICE候補はWebRTC backendが管理します。現在使用する `nethernet` APIはUDPポート範囲指定を公開していません。
