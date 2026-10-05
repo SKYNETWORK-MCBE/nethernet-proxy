@@ -68,7 +68,7 @@ jobs:
       - run: pnpm test
 
       - name: Build and pack
-        # prepack runs pnpm build. Stage and attach this exact same tarball.
+        # prepack runs pnpm build. Stage this exact same tarball.
         run: pnpm --dir packages/relay pack --out "$RUNNER_TEMP/nethernet-proxy-relay.tgz"
 
       - name: Stage package on npm with OIDC
@@ -87,15 +87,6 @@ jobs:
             echo '```'
           } >> "$GITHUB_STEP_SUMMARY"
 
-      - name: Save release artifacts
-        uses: actions/upload-artifact@v7
-        with:
-          name: release-${{ github.ref_name }}
-          path: |
-            ${{ runner.temp }}/nethernet-proxy-relay.tgz
-            ${{ runner.temp }}/npm-stage.json
-          if-no-files-found: error
-
       - name: Create draft GitHub Release
         env:
           GH_TOKEN: ${{ github.token }}
@@ -104,7 +95,7 @@ jobs:
         run: |
           {
             echo '## npm staged publishing'
-            echo 'This package is staged, not yet public. Review the attached tarball, then run `pnpm stage approve <stage-id>` with 2FA (or approve on npmjs.com).'
+            echo 'This package is staged, not yet public. Run `pnpm stage approve <stage-id>` with 2FA (or approve on npmjs.com).'
             echo 'Publish this GitHub Release manually after npm approval.'
             echo
             echo '```json'
@@ -116,4 +107,4 @@ jobs:
           if [[ "$PRERELEASE" == true ]]; then
             args+=(--prerelease)
           fi
-          gh release create "$GITHUB_REF_NAME" "$RUNNER_TEMP/nethernet-proxy-relay.tgz" "${args[@]}"
+          gh release create "$GITHUB_REF_NAME" "${args[@]}"
