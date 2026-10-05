@@ -91,51 +91,51 @@ import {
   TransportGateway,
   proxyServerIdentity,
   authenticateTransport,
-} from '@nethernet-proxy/relay'
-import { Packet, TextPacket } from '@serenityjs/protocol'
+} from '@nethernet-proxy/relay';
+import { Packet, TextPacket } from '@serenityjs/protocol';
 
-const serverUrl = 'http://127.0.0.1:19132'
-const response = await fetch(new URL('/v1/join', serverUrl))
-const status = await response.json()
+const serverUrl = 'http://127.0.0.1:19132';
+const response = await fetch(new URL('/v1/join', serverUrl));
+const status = await response.json();
 const proxy = new Relay({
   serverUrl,
   clientSideIdentity: await proxyServerIdentity(),
   serverSideIdentity: await authenticateTransport(String(status.version)),
-})
+});
 
 proxy.on('sessionOpen', (session) => {
   // 受信経路設定済み。WebRTC / 圧縮交渉の完了ではない。
-  console.log('open', session.connectionId)
-})
+  console.log('open', session.connectionId);
+});
 proxy.on('sessionReady', (session) => {
   // 前後のReliable / Unreliableがopen。圧縮交渉はまだの場合がある。
-})
-proxy.on('sessionClose', (session, reason) => console.log('close', session.connectionId, reason))
+});
+proxy.on('sessionClose', (session, reason) => console.log('close', session.connectionId, reason));
 
-const text = proxy.packetHandler(Packet.Text, { direction: 'c2s' })
+const text = proxy.packetHandler(Packet.Text, { direction: 'c2s' });
 const stopBefore = text.before((buffer) => {
-  const packet = new TextPacket(buffer).deserialize()
+  const packet = new TextPacket(buffer).deserialize();
   // Serenity 0.8.21のTextはvariantにmessageを持つ。
-  packet.variant.message = packet.variant.message.replaceAll('example', 'replacement')
-  return packet.serialize()
-})
+  packet.variant.message = packet.variant.message.replaceAll('example', 'replacement');
+  return packet.serialize();
+});
 const stopAfter = text.after((buffer, context) => {
   // 書き換え後の単一packet。UDP/batch/compression/fragment headerは含まない。
-  const packet = new TextPacket(buffer).deserialize()
-  console.log(context.connectionId, packet.variant.message)
-})
+  const packet = new TextPacket(buffer).deserialize();
+  console.log(context.connectionId, packet.variant.message);
+});
 
-const gateway = new TransportGateway(proxy)
-await gateway.listen(19134, '127.0.0.1')
+const gateway = new TransportGateway(proxy);
+await gateway.listen(19134, '127.0.0.1');
 ```
 
 アプリケーションの終了時に購読を解除し、gatewayとProxyを閉じます。
 
 ```ts
-stopBefore()
-stopAfter()
-await gateway.close()
-await proxy.close()
+stopBefore();
+stopAfter();
+await gateway.close();
+await proxy.close();
 ```
 
 ## Packet hook
@@ -174,12 +174,12 @@ session終了時に固有hookを解放し、最後の解除後は次batchから�
 圧縮交渉後、handler未登録でも利用可能です。
 
 ```ts
-session.client.send(packet.serialize()) // s2c、既定Reliable
-session.server.send(packet.serialize(), { channel: 'unreliable' }) // c2s
+session.client.send(packet.serialize()); // s2c、既定Reliable
+session.server.send(packet.serialize(), { channel: 'unreliable' }); // c2s
 
 // connectionId指定も同じ処理：
-proxy.sendToClient(session.connectionId, packet.serialize())
-proxy.sendToServer(session.connectionId, packet.serialize())
+proxy.sendToClient(session.connectionId, packet.serialize());
+proxy.sendToServer(session.connectionId, packet.serialize());
 ```
 
 - 単一packetをbatch化・圧縮・fragment化します。入力Bufferの後日の変更はqueueへ影響しません。

@@ -37,27 +37,27 @@ Login解析だけに用途を限定せず、今後packet操作、chat、表示�
 初期案の利用イメージ:
 
 ```ts
-import { NetherNetProxy } from '@nethernet-proxy/proxy'
+import { NetherNetProxy } from '@nethernet-proxy/proxy';
 
-const proxy = new NetherNetProxy(relayOptions)
+const proxy = new NetherNetProxy(relayOptions);
 
 proxy.on('playerJoin', (event) => {
   // Player生成前。session、identity、取得済み情報を利用できる。
-  console.log(event.connectionId, event.identity)
-})
+  console.log(event.connectionId, event.identity);
+});
 
 proxy.on('playerSpawn', ({ player, initialSpawn }) => {
   // Playerは一覧に登録済み。初期実装はinitialSpawn: trueのみ。
-  console.log(player.connectionId, initialSpawn)
-})
+  console.log(player.connectionId, initialSpawn);
+});
 
 proxy.on('playerLeave', ({ player, session, reason }) => {
   // spawn前ならplayerはundefined。生成済みなら閉じたPlayerも渡す。
-  console.log(session.connectionId, player?.closed, reason)
-})
+  console.log(session.connectionId, player?.closed, reason);
+});
 
-proxy.players // 初期化済みで接続中のPlayerだけを含むReadonlyMapのsnapshot
-proxy.getPlayer(connectionId)
+proxy.players; // 初期化済みで接続中のPlayerだけを含むReadonlyMapのsnapshot
+proxy.getPlayer(connectionId);
 ```
 
 上記のpayloadは設計案。Script APIのplayerId/playerNameだけに制限しない。

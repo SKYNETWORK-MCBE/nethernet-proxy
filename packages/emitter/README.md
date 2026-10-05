@@ -5,20 +5,20 @@ Bedrockやrelayには依存しません。listenerの管理・配送はMapとcop
 配送用snapshotは購読変更時だけ更新し、通常の発火ではlistener配列をコピーしません。
 
 ```ts
-import { Emitter } from '@nethernet-proxy/emitter'
+import { Emitter } from '@nethernet-proxy/emitter';
 
 interface Events {
-  chat: [event: { message: string }]
-  playerLeave: [event: { connectionId: string; reason: string }]
+  chat: [event: { message: string }];
+  playerLeave: [event: { connectionId: string; reason: string }];
 }
 
 const events = new Emitter<Events, 'chat'>({
   cancellable: ['chat'],
   onError: (error, context) => console.error(context.event, context.phase, error),
-})
+});
 
-events.before('chat', ({ message }) => !message.includes('blocked'))
-events.on('chat', ({ message }) => console.log(message))
+events.before('chat', ({ message }) => !message.includes('blocked'));
+events.on('chat', ({ message }) => console.log(message));
 
 if (events.emit('chat', { message: 'hello' })) {
   // 呼び出し側が許可された処理を実行する。
@@ -48,15 +48,15 @@ const stopWatching = events.onSubscriptionChange(({ event, listeners, before, to
   // before > 0: 転送前の判定が必要
   // listeners > 0: 観測が必要
   // total === 0: このeventのためだけの処理は不要
-})
+});
 
-events.listenerCount('chat')
-events.beforeCount('chat')
-events.hasListeners('chat')
-events.subscriptions('chat') // 不変な { event, listeners, before, total }
-events.eventNames() // beforeまたは通常listenerが存在するeventだけ
+events.listenerCount('chat');
+events.beforeCount('chat');
+events.hasListeners('chat');
+events.subscriptions('chat'); // 不変な { event, listeners, before, total }
+events.eventNames(); // beforeまたは通常listenerが存在するeventだけ
 
-stopWatching() // idempotent
+stopWatching(); // idempotent
 ```
 
 変更通知は実際の登録・解除・once消費後に同期で発火します。購読開始時のreplayはありません。

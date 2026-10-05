@@ -1,4 +1,4 @@
-import { defineConfig } from 'vite-plus'
+import { defineConfig } from 'vite-plus';
 
 export default defineConfig({
   pack: {
@@ -12,4 +12,4 @@ export default defineConfig({
     clean: true,
   },
   test: { environment: 'node', include: ['test/**/*.test.ts'] },
-})
+});

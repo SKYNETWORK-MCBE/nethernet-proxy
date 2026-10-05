@@ -8,12 +8,12 @@ pnpm add @nethernet-proxy/proxy
 ```
 
 ```ts
-import { NetherNetProxy, proxyServerIdentity, authenticateTransport } from '@nethernet-proxy/proxy'
+import { NetherNetProxy, proxyServerIdentity, authenticateTransport } from '@nethernet-proxy/proxy';
 
-const serverUrl = 'http://127.0.0.1:19132'
-const response = await fetch(new URL('/v1/join', serverUrl))
-if (!response.ok) throw new Error('server_status_failed')
-const status = await response.json()
+const serverUrl = 'http://127.0.0.1:19132';
+const response = await fetch(new URL('/v1/join', serverUrl));
+if (!response.ok) throw new Error('server_status_failed');
+const status = await response.json();
 const proxy = new NetherNetProxy({
   serverUrl,
   clientSideIdentity: await proxyServerIdentity(),
@@ -21,26 +21,26 @@ const proxy = new NetherNetProxy({
   gateway: {
     configure(gateway) {
       // terminal join handlerより先にHTTP policy middlewareを登録できる。
-      gateway.use(async (context, next) => next())
+      gateway.use(async (context, next) => next());
     },
   },
-})
+});
 
 proxy.on('playerJoin', ({ connectionId, identity, clientData }) => {
   // BDSのLoginSuccessを観測し、client dataの検証も完了。Playerはまだ生成しない。
-  console.log(connectionId, identity.login?.name, identity.transport?.name)
-  console.log(clientData.DeviceModel, clientData.DeviceOS)
-})
+  console.log(connectionId, identity.login?.name, identity.transport?.name);
+  console.log(clientData.DeviceModel, clientData.DeviceOS);
+});
 proxy.on('playerSpawn', ({ player, initialSpawn }) => {
   // Initializedを観測。Playerは既に一覧へ登録済み。
-  console.log(player.connectionId, player.runtimeEntityId, initialSpawn)
-})
+  console.log(player.connectionId, player.runtimeEntityId, initialSpawn);
+});
 proxy.on('playerLeave', ({ connectionId, player, reason }) => {
   // Join後・Spawn前の退出ならplayerはundefined。生成済みならclosed。
-  console.log(connectionId, player?.closed, reason)
-})
+  console.log(connectionId, player?.closed, reason);
+});
 
-await proxy.listen(19134, '127.0.0.1')
+await proxy.listen(19134, '127.0.0.1');
 // 終了時：gatewayとrelayの両方を閉じる。
 // await proxy.close()
 ```
@@ -51,7 +51,7 @@ await proxy.listen(19134, '127.0.0.1')
 rawの上限・transport設定・packet hookは [relayのAPI](../relay/README.md) と同じです。
 
 ```ts
-import { NetherNetProxy, TransportGateway } from '@nethernet-proxy/proxy'
+import { NetherNetProxy, TransportGateway } from '@nethernet-proxy/proxy';
 
 const proxy = new NetherNetProxy({
   ...relayOptions,
@@ -61,7 +61,7 @@ const proxy = new NetherNetProxy({
         /* HTTP middlewareを先に登録 */
       },
     }),
-})
+});
 
 // 別の選択肢（同時には作らない）：
 // new NetherNetProxy({ ...relayOptions, gateway: false })
@@ -109,11 +109,11 @@ JWT文字列や署名検証用の鍵は公開しません。端末識別情報�
 `false` を明示した場合のみ、取得失敗時も空オブジェクト `{}` で接続を継続します。成功時は取得したpayloadをそのまま公開します。
 
 ```ts
-const required = new NetherNetProxy(relayOptions)
-required.on('playerJoin', ({ clientData }) => console.log(clientData.DeviceOS))
+const required = new NetherNetProxy(relayOptions);
+required.on('playerJoin', ({ clientData }) => console.log(clientData.DeviceOS));
 
-const optional = new NetherNetProxy({ ...relayOptions, requireClientData: false })
-optional.on('playerJoin', ({ clientData }) => console.log(clientData.DeviceOS))
+const optional = new NetherNetProxy({ ...relayOptions, requireClientData: false });
+optional.on('playerJoin', ({ clientData }) => console.log(clientData.DeviceOS));
 ```
 
 型引数やoption連動の型分岐はありません。`clientData` 自体は常にobjectで、取得できないfieldは `undefined` です。

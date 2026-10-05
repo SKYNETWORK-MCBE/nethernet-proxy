@@ -1,5 +1,5 @@
-import { defineConfig } from 'vite-plus'
-import { fileURLToPath } from 'node:url'
+import { defineConfig } from 'vite-plus';
+import { fileURLToPath } from 'node:url';
 
 export default defineConfig({
   pack: {
@@ -22,4 +22,4 @@ export default defineConfig({
       '@nethernet-proxy/relay': fileURLToPath(new URL('../relay/src/index.ts', import.meta.url)),
     },
   },
-})
+});

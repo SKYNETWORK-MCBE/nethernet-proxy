@@ -12,41 +12,41 @@ import {
   VarString,
   ZigZag,
   ZigZong,
-} from '@serenityjs/binarystream'
-import { DataPacket, Packet, Vector3f } from '@serenityjs/protocol'
-import { Proto, Serialize } from '@serenityjs/raknet'
+} from '@serenityjs/binarystream';
+import { DataPacket, Packet, Vector3f } from '@serenityjs/protocol';
+import { Proto, Serialize } from '@serenityjs/raknet';
 
 // ponytail: initial-state prefix only; update if Bedrock changes the layout through dimension.
 // Not a complete StartGame packet for sending.
 @Proto(Packet.StartGame)
 export class StartGamePacket extends DataPacket {
   @Serialize(ZigZong)
-  entityId!: bigint
+  entityId!: bigint;
 
   @Serialize(VarLong)
-  runtimeEntityId!: bigint
+  runtimeEntityId!: bigint;
 
   @Serialize(ZigZag)
-  playerGamemode!: number
+  playerGamemode!: number;
 
   @Serialize(Vector3f)
-  playerPosition!: Vector3f
+  playerPosition!: Vector3f;
 
   @Serialize(Float32, { endian: Endianness.Little })
-  pitch!: number
+  pitch!: number;
 
   @Serialize(Float32, { endian: Endianness.Little })
-  yaw!: number
+  yaw!: number;
 
   @Serialize(Uint64, { endian: Endianness.Little })
-  seed!: bigint
+  seed!: bigint;
 
   @Serialize(Int16, { endian: Endianness.Little })
-  biomeType!: number
+  biomeType!: number;
 
   @Serialize(VarString)
-  biomeName!: string
+  biomeName!: string;
 
   @Serialize(ZigZag)
-  dimension!: number
+  dimension!: number;
 }
