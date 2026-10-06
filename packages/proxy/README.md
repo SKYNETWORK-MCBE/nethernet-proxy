@@ -157,4 +157,4 @@ packet定義は `@serenityjs/protocol` **0.8.21** に固定。実BDS + 実client
 ## License
 
 このpackageは [MIT](LICENSE) です。SerenityJS由来の実装には `Copyright (c) 2024 SerenityJS` が適用されます。
-取り込み元・変更点とupstreamのライセンス全文は [THIRD_PARTY_NOTICES.md](THIRD_PARTY_NOTICES.md) を参照してください。再配布時はこのnoticeも保持してください。
+SerenityJSの著作権表示とライセンス全文は [THIRD_PARTY_NOTICES.md](THIRD_PARTY_NOTICES.md) を参照してください。再配布時はこのnoticeも保持してください。

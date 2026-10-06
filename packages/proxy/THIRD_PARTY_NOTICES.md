@@ -3,13 +3,8 @@
 ## SerenityJS
 
 Portions of this package are derived from or based on [SerenityJS](https://github.com/SerenityJS/serenity), licensed under the MIT License.
-The upstream revision is `eb6ac9734aeae0d3f4ac441c222804e1af6a6b4d` (`@serenityjs/protocol` 0.8.21).
 
-- `src/protocol/start-game.ts`: adapted from [StartGamePacket](https://github.com/SerenityJS/serenity/blob/eb6ac9734aeae0d3f4ac441c222804e1af6a6b4d/packages/protocol/src/proto/data/start-game.ts). Only the prefix through `dimension` is retained; imports, field types, and formatting were adjusted.
-- `src/proxy.ts`: lifecycle observations based on [LoginHandler](https://github.com/SerenityJS/serenity/blob/eb6ac9734aeae0d3f4ac441c222804e1af6a6b4d/packages/core/src/handlers/login.ts) and [SetLocalPlayerAsInitializedHandler](https://github.com/SerenityJS/serenity/blob/eb6ac9734aeae0d3f4ac441c222804e1af6a6b4d/packages/core/src/handlers/set-local-player-as-initialized.ts). Adapted for proxy-side observation, verification, and Player notifications rather than server-side world/entity creation.
-- `test/lifecycle.test.ts`: the serialized StartGame fixture is derived from the SerenityJS protocol definition.
-
-The following upstream notice applies to those portions, including their copies in the compiled output and source maps. It does not replace this project's [LICENSE](LICENSE).
+The following upstream notice applies to all SerenityJS-derived portions, including their copies in the compiled output and source maps. It does not replace this project's [LICENSE](LICENSE).
 
 ```text
 MIT License
