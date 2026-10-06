@@ -7,6 +7,7 @@ gatewayは同時生成・無効化・差し込みに対応。使い方は [proxy
 Node.js 26.xに統一。Login client dataの署名検証と、Join / Leave / PlayerでのSerenity `Readonly<Partial<ClientData>>` 公開を実装。
 raw中継を保ち、通知のみLoginSuccessと検証完了を待つ。timeout・切断時の扱いはproxy READMEを参照。
 client data取得はOnlineのみ。既定で必須（取得失敗時はエラーとして切断）、`requireClientData: false` なら取得失敗時に空オブジェクトを公開する。型引数は使わない。
+Player identityはLogin由来のフラットなsnapshot。認証済みsignalingとLoginのXUID不一致は切断し、Playerには `xuid / name / pfid` getterを公開する。
 
 ## 目的と分担
 

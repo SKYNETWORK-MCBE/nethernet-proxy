@@ -35,7 +35,7 @@ export interface SendOptions {
 export interface SessionPeer {
   send(packet: Buffer, options?: SendOptions): SendResult;
 }
-export interface Session {
+export interface ISession {
   readonly connectionId: string;
   readonly networkId?: string;
   readonly verifiedSignaling?: VerifiedSdpIdentity;
@@ -47,10 +47,10 @@ export interface Session {
   close(reason?: string): Promise<void>;
 }
 export interface RelayEvents {
-  sessionOpen: [session: Session];
-  sessionReady: [session: Session];
-  sessionClose: [session: Session, reason: string];
-  packetError: [session: Session, reason: string, direction: Direction, channel: Channel];
+  sessionOpen: [session: ISession];
+  sessionReady: [session: ISession];
+  sessionClose: [session: ISession, reason: string];
+  packetError: [session: ISession, reason: string, direction: Direction, channel: Channel];
   signalingRejected: [connectionId: string, reason: string];
 }
 export interface RelayLimits {

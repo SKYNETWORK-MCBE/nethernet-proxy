@@ -28,12 +28,12 @@ const proxy = new NetherNetProxy({
 
 proxy.on('playerJoin', ({ connectionId, identity, clientData }) => {
   // BDSのLoginSuccessを観測し、client dataの検証も完了。Playerはまだ生成しない。
-  console.log(connectionId, identity.login?.name, identity.transport?.name);
+  console.log(connectionId, identity.name, identity.xuid);
   console.log(clientData.DeviceModel, clientData.DeviceOS);
 });
 proxy.on('playerSpawn', ({ player, initialSpawn }) => {
   // Initializedを観測。Playerは既に一覧へ登録済み。
-  console.log(player.connectionId, player.runtimeEntityId, initialSpawn);
+  console.log(player.name, player.xuid, player.pfid, player.runtimeEntityId, initialSpawn);
 });
 proxy.on('playerLeave', ({ connectionId, player, reason }) => {
   // Join後・Spawn前の退出ならplayerはundefined。生成済みならclosed。
@@ -87,21 +87,25 @@ Join前の接続失敗にLeaveは発火しません。
 - `proxy.players`: 初期化済み・接続中Playerの `ReadonlyMap` snapshot。
 - `proxy.getPlayer(connectionId)`: Player取得。再接続では新しいPlayerです。
 - `player.connectionId / session / closed / identity / runtimeEntityId / protocol? / clientData`。
+- `player.xuid / name / pfid`: `identity` の対応fieldを返すgetter。取得できない値は `undefined`。
 - `player.initialState`: entityId、runtimeEntityId、gamemode、position、dimension、pitch、yawのreadonly snapshot。現在値の追跡ではありません。
 - `player.close(reason?)`: transport終了。画面に理由を表示するdisconnectとは異なります。
 - `player.send(buffer, options?)` / `sendToServer(buffer, options?)`: serialize済み単一packetを送信。閉じたPlayerは拒否します。
 - `proxy.packetHandler(...)` / `proxy.relay` / `session.packetHandler(...)`: raw hookへのアクセス。
 
-`identity.login` はLogin由来の `name? / xuid? / uuid?` で、`source: 'login'`。
-online tokenとclient JWTの検証が成功した場合は `verified: true`、decodeのみ・offlineの場合は `false` です。
+`identity` はLogin由来の `name? / xuid? / pfid? / uuid? / verified` を持つフラットなreadonly snapshotです。Join / Leave / Playerで共有します。
+`pfid` はLogin tokenの `mid`（PlayFab ID）です。online tokenとclient JWTの検証が成功した場合は `verified: true`、decodeのみ・offlineの場合は `false` です。
 値がなければ省略し、UUID/XUIDを生成しません。JWT・鍵そのものはeventへ載せません。
-`identity.transport` はrelayが検証したsignaling由来の `name / xuid / playFabId` で、ゲームLoginとは別です。
+signaling identityがある場合は、認証済みLogin tokenのXUIDと照合します。不一致は `identity_xuid_mismatch` として `requireClientData: false` でも切断し、未通知のJoin / Spawn / Leaveは発火しません。
+照合はclient JWT検証より前に行います。通知timeout後に不一致が判明した場合も、同じ接続が生きていれば切断します。既にJoinを通知していればLeaveを通知します。
+名前やPlayFab IDは比較せずLogin側を採用します。未検証LoginのXUIDがsignalingと一致しても `verified: true` にしません。
+signaling情報がない場合は照合を省略し、`verified` はLoginの署名検証結果を表します。詳細なsignaling情報は `player.session.verifiedSignaling` で取得できます。
 
 ## Loginのclient data
 
 `clientData` はSerenityの `ClientData` を使う `Readonly<Partial<ClientData>>` です。`ClientData` はこのpackageからもtype exportします。
 `playerJoin`、`playerLeave`、`Player` で同じオブジェクトを共有し、device情報だけでなく `SkinData`、`SkinGeometryData`、`PersonaPieces` 等も保持します。
-検証済みJWTのpayloadを選別せず公開します。追加claimも保持しますが、型定義はSerenityのままで、proxy独自の `source` / `verified` は付加しません。認証状態は `identity.login?.verified` を参照してください。
+検証済みJWTのpayloadを選別せず公開します。追加claimも保持しますが、型定義はSerenityのままで、proxy独自の `source` / `verified` は付加しません。認証状態は `identity.verified` を参照してください。
 JWT文字列や署名検証用の鍵は公開しません。端末識別情報やskinを含むため、client data全体のログ出力・外部公開は避けてください。
 `Readonly` と `Object.freeze()` はトップレベルのみです。nested array/objectは書き換えないでください。
 
@@ -127,7 +131,7 @@ optional.on('playerJoin', ({ clientData }) => console.log(clientData.DeviceOS));
 - Initialized観測後は追跡hookを解除します。検証待ちの間も、そのsessionは他のhookがなければ次batchからrawへ戻ります。
 - 検証失敗・timeout・同時検証数超過・LoginなしのLoginSuccessでは固定コードの診断を出し、必須モードはエラーとして切断します。`requireClientData: false` の場合は `clientData: {}` で継続します。
 - 検証待ちのまま切断した場合、必須モードはJoin / Spawn / Leaveを通知せず、`sessionClose` のみ通知します。`false` の場合はLoginSuccessを観測済みなら空のclient dataでJoin → Leaveを通知します。
-- 切断・停止・timeout後に届いた検証結果は破棄し、再接続や閉じたPlayerへ反映しません。共有JWKS取得自体は中止しません。
+- 切断・停止・timeout後のmetadataは破棄し、再接続や閉じたPlayerへ反映しません。timeout後のXUID不一致だけは、生存中の同じ接続を切断します。共有JWKS取得自体は中止しません。
 
 `NetherNetProxyOptions` の `loginTimeoutMs` は通知の最大検証待ち時間（既定5000 ms）、`maxPendingLogins` は同時検証数（既定8）です。
 timeout / 切断後も実際の検証処理が終了するまで同時検証枠を保持します。JWTの署名検証に必要なNode 26のAPIを使用し、NubのAPI補完には依存しません。

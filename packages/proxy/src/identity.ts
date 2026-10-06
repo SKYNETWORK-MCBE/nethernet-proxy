@@ -1,19 +1,10 @@
-export interface LoginIdentity {
-  readonly source: 'login';
+export interface PlayerIdentity {
   readonly verified: boolean;
   readonly name?: string;
   readonly xuid?: string;
+  /** Playfab ID */
+  readonly persistentId?: string;
   readonly uuid?: string;
-}
-export interface PlayerIdentity {
-  readonly login?: LoginIdentity;
-  readonly transport?: Readonly<{
-    source: 'signaling';
-    verified: true;
-    name: string;
-    xuid: string;
-    playFabId: string;
-  }>;
 }
 
 function object(value: unknown): Record<string, unknown> {
@@ -33,15 +24,15 @@ function text(value: unknown) {
 }
 
 /** Decode a small allowlist only; BDS acceptance is not JWT verification by this library. */
-export function loginIdentity(identity: string): LoginIdentity {
+export function loginIdentity(identity: string): PlayerIdentity {
   const data = object(JSON.parse(identity));
   if (typeof data.Token === 'string' && data.Token.length) {
     const token = loginClaims(data.Token);
     return Object.freeze({
-      source: 'login',
       verified: false,
       name: text(token.xname),
       xuid: text(token.xid),
+      pfid: text(token.mid),
     });
   }
   if (data.Certificate !== undefined && typeof data.Certificate !== 'string')
@@ -53,7 +44,6 @@ export function loginIdentity(identity: string): LoginIdentity {
     if (extra === undefined) continue;
     const info = object(extra);
     return Object.freeze({
-      source: 'login',
       verified: false,
       name: text(info.displayName),
       xuid: text(info.XUID),

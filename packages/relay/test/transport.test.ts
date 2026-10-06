@@ -19,7 +19,7 @@ import { createSdpVerifier } from '../src/sdp-verifier';
 import { decodePayload, encodePayload, fragmentPayload, Reassembler } from '../src/framing';
 import { identity, signingKey, serverIdentity } from './helpers/sdp';
 import { packet, frames } from './helpers/relay';
-import type { Channel, PacketContext, Session } from '../src/types';
+import type { Channel, PacketContext, ISession } from '../src/types';
 
 async function until(predicate: () => boolean) {
   const deadline = Date.now() + 20000;
@@ -90,8 +90,8 @@ for (const gatewayMode of [false, true])
           verifyClientToken: createMinecraftClientTokenVerifier({ jwksUrl: url + '/keys' }),
         }),
       });
-      const opened: Session[] = [];
-      const ready: Session[] = [];
+      const opened: ISession[] = [];
+      const ready: ISession[] = [];
       const closed: string[] = [];
       relay.on('sessionOpen', (session) => {
         opened.push(session);

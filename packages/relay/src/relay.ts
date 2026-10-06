@@ -16,7 +16,7 @@ import type {
   RelayEvents,
   RelayOptions,
   SendOptions,
-  Session,
+  ISession,
   RelayLimits,
   Log,
 } from './types';
@@ -94,7 +94,7 @@ export class Relay extends EventEmitter<RelayEvents> {
     });
   }
   /** Read-only snapshot of public session handles; transport internals are not exposed here. */
-  get sessions(): ReadonlyMap<string, Session> {
+  get sessions(): ReadonlyMap<string, ISession> {
     return new Map([...this.active.values()].map(({ session }) => [session.connectionId, session]));
   }
   packetHandler(id: number, options?: PacketSubscriptionOptions) {

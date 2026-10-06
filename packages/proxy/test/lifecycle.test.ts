@@ -2,7 +2,7 @@ import assert from 'node:assert/strict';
 import { generateKeyPairSync, sign } from 'node:crypto';
 import { test, vi } from 'vite-plus/test';
 import { Relay, TransportGateway } from '@nethernet-proxy/relay';
-import type { Session, Direction, VerifiedSdpIdentity } from '@nethernet-proxy/relay';
+import type { ISession, Direction, VerifiedSdpIdentity } from '@nethernet-proxy/relay';
 import {
   LoginPacket,
   LoginTokens,
@@ -47,6 +47,15 @@ const deviceData = {
   DeviceModel: 'Test device',
   DeviceOS: 7,
 } satisfies Partial<ClientData>;
+const signalingIdentity: VerifiedSdpIdentity = {
+  sdpSha256: 'digest',
+  xuid: '123',
+  gamertag: 'TransportName',
+  playFabId: 'signaling-playfab',
+  publicKeyFingerprint: 'fingerprint',
+  issuer: 'issuer',
+  expiresAt: Date.now() / 1000 + 600,
+};
 function signedClient(claims: unknown) {
   const body = `${Buffer.from(JSON.stringify({ alg: 'ES384', typ: 'JWT' })).toString('base64url')}.${Buffer.from(JSON.stringify(claims)).toString('base64url')}`;
   return `${body}.${sign('sha384', Buffer.from(body), { key: clientKeys.privateKey, dsaEncoding: 'ieee-p1363' }).toString('base64url')}`;
@@ -113,7 +122,7 @@ function harness(
     },
   });
   const relay = proxy.relay;
-  const sessions = new Map<string, Session>();
+  const sessions = new Map<string, ISession>();
   vi.spyOn(relay, 'sessions', 'get').mockImplementation(() => new Map(sessions));
   const closeRelay = relay.close.bind(relay);
   vi.spyOn(relay, 'close').mockImplementation(async () => {
@@ -178,17 +187,20 @@ test('real packet observations produce Join → Spawn → Leave; duplicate packe
   a.inject('s2c', success(), success(), startGameBytes, startGameBytes);
   assert.deepEqual(order, ['join']);
   assert.equal(joined.protocol, 1000);
-  assert.deepEqual(joined.identity.login, {
-    source: 'login',
+  assert.deepEqual(joined.identity, {
     verified: false,
     name: 'Alice',
     xuid: '123',
+    pfid: undefined,
   });
   assert.ok(!JSON.stringify(joined.identity).includes('secret'));
   a.inject('c2s', initialized(), initialized());
   assert.deepEqual(order, ['join', 'spawn']);
   assert.equal(player.session, joined.session);
   assert.equal(player.identity, joined.identity);
+  assert.equal(player.xuid, '123');
+  assert.equal(player.name, 'Alice');
+  assert.equal(player.pfid, undefined);
   assert.deepEqual(player.initialState.position, { x: 1, y: 64, z: 2 });
   assert.ok(Object.isFrozen(player.initialState.position));
   const snapshot = h.proxy.players;
@@ -357,7 +369,7 @@ test('exceptions and rejected notification promises do not block siblings or tea
   assert.equal(h.proxy.players.size, 0);
 });
 
-test('identity decoding separates source/verification and does not synthesize absent values', () => {
+test('identity decoding remains unverified and does not synthesize absent values', () => {
   const certificate = JSON.stringify({
     chain: [
       jwt({
@@ -366,7 +378,6 @@ test('identity decoding separates source/verification and does not synthesize ab
     ],
   });
   assert.deepEqual(loginIdentity(certificate), {
-    source: 'login',
     verified: false,
     name: 'Offline',
     uuid: 'actual-uuid',
@@ -386,17 +397,9 @@ test('identity decoding separates source/verification and does not synthesize ab
     assert.throws(() => loginIdentity(input));
 });
 
-test('subclient packets do not initialize the main Player; transport and login identity remain separate', async () => {
+test('subclients are ignored and a matching signaling XUID does not authenticate an unverified Login', async () => {
   const h = harness();
-  const a = h.add(1n, {
-    sdpSha256: 'digest',
-    xuid: '999',
-    gamertag: 'TransportName',
-    playFabId: 'playfab',
-    publicKeyFingerprint: 'fingerprint',
-    issuer: 'issuer',
-    expiresAt: Date.now() / 1000 + 600,
-  });
+  const a = h.add(1n, signalingIdentity);
   const subclient = (bytes: Buffer) => Buffer.concat([uint(bytes[0] | 1024), bytes.subarray(1)]);
   let joins = 0;
   h.proxy.on('playerJoin', () => {
@@ -413,15 +416,12 @@ test('subclient packets do not initialize the main Player; transport and login i
   a.inject('c2s', initialized());
   const player = h.proxy.getPlayer('1')!;
   assert.equal(joins, 1);
-  assert.equal(player.identity.login?.xuid, '123');
-  assert.deepEqual(player.identity.transport, {
-    source: 'signaling',
-    verified: true,
-    name: 'TransportName',
-    xuid: '999',
-    playFabId: 'playfab',
-  });
-  assert.ok(Object.isFrozen(player.identity.transport));
+  assert.equal(player.xuid, '123');
+  assert.equal(player.name, 'Alice');
+  assert.equal(player.pfid, undefined);
+  assert.equal(player.identity.verified, false);
+  assert.equal(player.session.verifiedSignaling, signalingIdentity);
+  assert.ok(Object.isFrozen(player.identity));
   await h.proxy.close();
 });
 
@@ -493,17 +493,18 @@ test('PoC-style verification preserves Serenity ClientData including skins and n
     verified: false,
   };
   const packet = signedLogin(data);
-  const result = await verifyLoginClientData(packet.tokens);
+  const result = await verifyLoginClientData(packet.tokens, '123');
   assert.deepEqual(result.identity, {
-    source: 'login',
     verified: true,
     name: 'Alice',
     xuid: '123',
+    pfid: 'playfab',
   });
   assert.deepEqual(result.clientData, data);
   assert.ok(Object.isFrozen(result.clientData));
   assert.equal(result.clientData.SkinData, 'large skin');
   assert.equal(Reflect.set(result.clientData, 'DeviceModel', 'changed'), false);
+  await assert.rejects(verifyLoginClientData(packet.tokens, '999'), /identity_xuid_mismatch/);
   const [header, , signature] = packet.tokens.client.split('.');
   packet.tokens.client = `${header}.${Buffer.from(JSON.stringify({ ...deviceData, DeviceOS: 99 })).toString('base64url')}.${signature}`;
   await assert.rejects(verifyLoginClientData(packet.tokens));
@@ -538,7 +539,7 @@ test('client data verification supports only online authentication', async () =>
 
 test('LoginSuccess and Initialized can arrive before verification; forwarding continues and Join precedes Spawn', async () => {
   const h = harness(false, { requireClientData: undefined });
-  const a = h.add();
+  const a = h.add(1n, signalingIdentity);
   const order: string[] = [];
   let joined!: PlayerJoinEvent;
   const ready = new Promise<void>((resolve) => {
@@ -569,13 +570,16 @@ test('LoginSuccess and Initialized can arrive before verification; forwarding co
   assert.deepEqual(joined.clientData, deviceData);
   assert.equal(player.clientData, joined.clientData);
   assert.equal(player.identity, joined.identity);
-  assert.equal(player.identity.login?.verified, true);
+  assert.equal(player.identity.verified, true);
+  assert.equal(player.xuid, '123');
+  assert.equal(player.name, 'Alice');
+  assert.equal(player.pfid, 'playfab');
   await a.session.close();
   assert.deepEqual(order, ['join', 'spawn', 'leave']);
   await h.proxy.close();
 });
 
-test('optional client data falls back to a shared frozen empty object on verification failure', async () => {
+test('optional client data falls back to a shared empty object on verification failure', async () => {
   const h = harness();
   const a = h.add();
   const joined = new Promise<PlayerJoinEvent>((resolve) => h.proxy.once('playerJoin', resolve));
@@ -587,7 +591,6 @@ test('optional client data falls back to a shared frozen empty object on verific
   a.inject('c2s', initialized());
   const event = await joined;
   assert.deepEqual(event.clientData, {});
-  assert.ok(Object.isFrozen(event.clientData));
   assert.equal(h.proxy.getPlayer('1')?.clientData, event.clientData);
   h.proxy.on('playerLeave', (left) => assert.equal(left.clientData, event.clientData));
   assert.ok(h.proxy.getPlayer('1'));
@@ -595,6 +598,49 @@ test('optional client data falls back to a shared frozen empty object on verific
   assert.ok(!JSON.stringify(h.logs).includes('never log me'));
   assert.equal(a.session.closed, false);
   await h.proxy.close();
+});
+
+test('authenticated XUID mismatches close before client JWT verification even when client data is optional', async () => {
+  for (const requireClientData of [false, true]) {
+    const h = harness(false, { requireClientData });
+    const a = h.add(1n, { ...signalingIdentity, xuid: '999' });
+    const events: string[] = [];
+    for (const event of ['playerJoin', 'playerSpawn', 'playerLeave'] as const)
+      h.proxy.on(event, () => {
+        events.push(event);
+      });
+    const packet = signedLogin();
+    packet.tokens.client = 'invalid-client-jwt';
+    a.inject('c2s', packet.serialize());
+    a.inject('s2c', success(), startGameBytes);
+    a.inject('c2s', initialized());
+    await vi.waitFor(() => assert.ok(a.session.closed));
+    assert.deepEqual(events, []);
+    assert.equal(h.proxy.players.size, 0);
+    assert.ok(h.logs.some((log) => log.reason === 'identity_xuid_mismatch'));
+    await h.proxy.close();
+  }
+});
+
+test('a late authenticated XUID mismatch still closes an active session after optional metadata timeout', async () => {
+  const pending = Promise.withResolvers<typeof deviceData>();
+  const verify = vi.spyOn(Authentication, 'verify').mockImplementationOnce(() => pending.promise);
+  const h = harness(false, { loginTimeoutMs: 150 });
+  const a = h.add(1n, signalingIdentity);
+  try {
+    a.inject('c2s', signedLogin().serialize());
+    a.inject('s2c', success(), startGameBytes);
+    a.inject('c2s', initialized());
+    await vi.waitFor(() => assert.ok(h.proxy.getPlayer('1')));
+    pending.reject(new Error('identity_xuid_mismatch'));
+    await vi.waitFor(() => assert.ok(a.session.closed));
+    assert.equal(h.proxy.players.size, 0);
+    assert.ok(h.logs.some((log) => log.reason === 'identity_xuid_mismatch'));
+  } finally {
+    pending.resolve(deviceData);
+    await h.proxy.close();
+    verify.mockRestore();
+  }
 });
 
 test('client data is required by default; verification failure, unsupported or missing Login closes without player events', async () => {
@@ -656,7 +702,8 @@ test('close or stop during client verification cannot emit late events or affect
           reconnect.inject('c2s', initialized());
         }
         const before = [...order];
-        pending.resolve(deviceData);
+        if (requireClientData) pending.reject(new Error('identity_xuid_mismatch'));
+        else pending.resolve(deviceData);
         await new Promise((resolve) => setImmediate(resolve));
         assert.deepEqual(order, before);
         assert.deepEqual(

@@ -8,7 +8,7 @@ export { authenticateTransport } from './auth';
 export type {
   Direction,
   Channel,
-  Session,
+  ISession,
   SessionPeer,
   SendOptions,
   SendResult,

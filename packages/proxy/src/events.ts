@@ -1,11 +1,11 @@
-import type { RelayEvents, Session } from '@nethernet-proxy/relay';
+import type { RelayEvents, ISession } from '@nethernet-proxy/relay';
 import type { PlayerIdentity } from './identity';
 import type { Player } from './player';
 import type { ClientData } from '@serenityjs/protocol';
 
 export interface PlayerJoinEvent {
   readonly connectionId: string;
-  readonly session: Session;
+  readonly session: ISession;
   readonly identity: PlayerIdentity;
   readonly protocol?: number;
   readonly clientData: ClientData;

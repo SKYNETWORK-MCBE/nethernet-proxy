@@ -2,13 +2,16 @@ import { createPublicKey } from 'node:crypto';
 import { Authentication, AuthenticationType } from '@bedrock-apis/carolina-authentication';
 import type { ClientData, LoginTokens } from '@serenityjs/protocol';
 import { createMinecraftClientTokenVerifier } from 'nethernet-gateway/minecraft';
-import type { LoginIdentity } from './identity';
+import type { PlayerIdentity } from './identity';
 
 const verifyToken = createMinecraftClientTokenVerifier();
 
-/** PoC's token → authenticated cpk → signed client JWT flow, without retaining credentials. */
-export async function verifyLoginClientData(tokens: LoginTokens): Promise<{
-  identity: LoginIdentity;
+/** PoC's token → authenticated cpk → signed client JWT flow; expectedXuid comes from verified signaling. */
+export async function verifyLoginClientData(
+  tokens: LoginTokens,
+  expectedXuid?: string,
+): Promise<{
+  identity: PlayerIdentity;
   clientData: Readonly<ClientData>;
 }> {
   const authentication = Authentication.parse(tokens.identity);
@@ -16,6 +19,8 @@ export async function verifyLoginClientData(tokens: LoginTokens): Promise<{
     throw new Error('unsupported_login_authentication');
   // Reuse the relay ecosystem's issuer/audience/RS256/JWKS checks, including a bounded JWKS fetch.
   const online = await verifyToken(authentication.Token);
+  if (expectedXuid !== undefined && online.xuid !== expectedXuid)
+    throw new Error('identity_xuid_mismatch');
   const key = createPublicKey({ key: online.cpk, format: 'jwk' })
     .export({ type: 'spki', format: 'der' })
     .toString('base64');
@@ -23,10 +28,10 @@ export async function verifyLoginClientData(tokens: LoginTokens): Promise<{
   if (client == null) throw new Error('missing_client_data');
   return {
     identity: Object.freeze({
-      source: 'login',
       verified: true,
       name: online.gamertag,
       xuid: online.xuid,
+      pfid: online.playFabId,
     }),
     clientData: Object.freeze(client),
   };

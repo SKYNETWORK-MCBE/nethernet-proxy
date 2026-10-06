@@ -17,7 +17,8 @@ import type {
   RelayLimits,
   SendOptions,
   SendResult,
-  Session,
+  ISession,
+  SessionPeer,
 } from './types';
 import type { VerifiedSdpIdentity } from './sdp-verifier';
 
@@ -56,10 +57,10 @@ export const defaultLimits: RelayLimits = {
 };
 
 /** Per-player relay state. Transport creation/authentication belong to Relay. */
-export class ProxySession implements Session {
+export class ProxySession implements ISession {
   readonly connectionId: string;
-  readonly client: Session['client'];
-  readonly server: Session['server'];
+  readonly client: SessionPeer;
+  readonly server: SessionPeer;
   private streams: Record<Direction, Record<Channel, Stream>> = {
     c2s: { reliable: stream(), unreliable: stream() },
     s2c: { reliable: stream(), unreliable: stream() },

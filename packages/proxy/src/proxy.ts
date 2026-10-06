@@ -8,7 +8,7 @@ import { Relay, TransportGateway } from '@nethernet-proxy/relay';
 import type {
   RelayOptions,
   RelayEvents,
-  Session,
+  ISession,
   TransportGatewayOptions,
 } from '@nethernet-proxy/relay';
 import {
@@ -41,7 +41,7 @@ export type NetherNetProxyOptions = RelayOptions & {
 };
 
 interface ConnectionState {
-  readonly session: Session;
+  readonly session: ISession;
   identity: PlayerIdentity;
   protocol?: number;
   clientData?: ClientData;
@@ -66,7 +66,7 @@ export class NetherNetProxy extends Emitter<ProxyEvents> {
   private pendingLogins = 0;
   private readonly loginTimeoutMs: number;
   private readonly maxPendingLogins: number;
-  private readonly requireClientData: boolean;
+  readonly requireClientData: boolean;
 
   constructor(options: NetherNetProxyOptions) {
     // Fixed diagnostics only: consumer errors can include tokens or packet bodies.
@@ -112,40 +112,34 @@ export class NetherNetProxy extends Emitter<ProxyEvents> {
   get players(): ReadonlyMap<string, Player> {
     return new Map(this.activePlayers);
   }
+
   get sessions() {
     return this.relay.sessions;
   }
+  
   get closed() {
     return this.stopped;
   }
+
   getPlayer(connectionId: string | bigint) {
     return this.activePlayers.get(String(connectionId));
   }
+
   packetHandler(...args: Parameters<Relay['packetHandler']>) {
     return this.relay.packetHandler(...args);
   }
+
   async listen(port: number, host?: string) {
     if (this.stopped) throw new Error('proxy_closed');
     if (!this.gateway) throw new Error('gateway_disabled');
     return this.gateway.listen(port, host);
   }
 
-  private readonly open = (session: Session) => {
+  private readonly open = (session: ISession) => {
     if (this.stopped || session.closed || this.connections.has(session.connectionId)) return;
-    const transport = session.verifiedSignaling;
     const state: ConnectionState = {
       session,
-      identity: Object.freeze({
-        transport: transport
-          ? Object.freeze({
-              source: 'signaling' as const,
-              verified: true as const,
-              name: transport.gamertag,
-              xuid: transport.xuid,
-              playFabId: transport.playFabId,
-            })
-          : undefined,
-      }),
+      identity: Object.freeze({ verified: false }),
       joined: false,
       joinNotified: false,
       initialized: false,
@@ -184,10 +178,7 @@ export class NetherNetProxy extends Emitter<ProxyEvents> {
       const packet = new LoginPacket(buffer).deserialize();
       state.protocol = packet.protocol;
       try {
-        state.identity = Object.freeze({
-          ...state.identity,
-          login: loginIdentity(packet.tokens.identity),
-        });
+        state.identity = loginIdentity(packet.tokens.identity);
       } catch {
         this.relay.log('player_tracking_error', {
           connectionId: session.connectionId,
@@ -257,6 +248,7 @@ export class NetherNetProxy extends Emitter<ProxyEvents> {
     });
     this.emit('sessionOpen', session);
   };
+
   private readClientData(state: ConnectionState, tokens: LoginPacket['tokens']) {
     if (this.pendingLogins >= this.maxPendingLogins) {
       this.clientDataFailed(state, 'login_verification_busy');
@@ -268,21 +260,22 @@ export class NetherNetProxy extends Emitter<ProxyEvents> {
       result?: Awaited<ReturnType<typeof verifyLoginClientData>>,
       reason?: string,
     ) => {
-      if (!state.loginPending) return;
-      state.stopLogin?.();
       if (
         this.stopped ||
         state.session.closed ||
         this.connections.get(state.session.connectionId) !== state
       )
         return;
+      // A late authenticated mismatch still rejects this session; other late results are ignored.
+      if (!state.loginPending && reason !== 'identity_xuid_mismatch') return;
+      state.stopLogin?.();
       if (reason) {
         this.clientDataFailed(state, reason);
-        if (this.requireClientData) return;
+        if (this.requireClientData || reason === 'identity_xuid_mismatch') return;
       }
       if (result) {
         state.clientData = result.clientData;
-        state.identity = Object.freeze({ ...state.identity, login: result.identity });
+        state.identity = result.identity;
       }
       this.notifyJoin(state);
       this.spawn(state);
@@ -298,21 +291,29 @@ export class NetherNetProxy extends Emitter<ProxyEvents> {
       state.stopLogin = undefined;
     };
     // Keep the slot until underlying work settles, even after timeout/close; reconnects cannot bypass the cap.
-    void verifyLoginClientData(tokens).then(
+    void verifyLoginClientData(tokens, state.session.verifiedSignaling?.xuid).then(
       (result) => {
         this.pendingLogins--;
         finish(result);
       },
-      () => {
+      (error) => {
         this.pendingLogins--;
-        finish(undefined, 'login_verification_failed');
+        finish(
+          undefined,
+          error instanceof Error && error.message === 'identity_xuid_mismatch'
+            ? 'identity_xuid_mismatch'
+            : 'login_verification_failed',
+        );
       },
     );
   }
+
   private clientDataFailed(state: ConnectionState, reason: string) {
     this.relay.log('player_tracking_error', { connectionId: state.session.connectionId, reason });
-    if (this.requireClientData) void state.session.close(reason);
+    if (this.requireClientData || reason === 'identity_xuid_mismatch')
+      void state.session.close(reason);
   }
+
   private notifyJoin(state: ConnectionState) {
     if (
       !state.joined ||
@@ -324,6 +325,7 @@ export class NetherNetProxy extends Emitter<ProxyEvents> {
     state.joinNotified = true;
     this.emit('playerJoin', this.joinEvent(state));
   }
+
   private spawn(state: ConnectionState) {
     if (
       !state.joinNotified ||
@@ -337,6 +339,7 @@ export class NetherNetProxy extends Emitter<ProxyEvents> {
     )
       return;
     state.player = new Player(
+      this,
       state.session,
       state.identity,
       state.initialState,
@@ -346,6 +349,7 @@ export class NetherNetProxy extends Emitter<ProxyEvents> {
     this.activePlayers.set(state.session.connectionId, state.player);
     this.emit('playerSpawn', Object.freeze({ player: state.player, initialSpawn: true }));
   }
+
   private fail(state: ConnectionState, reason: string, id: number) {
     state.invalid = true;
     if (state.joined) this.unhook(state);
@@ -356,26 +360,29 @@ export class NetherNetProxy extends Emitter<ProxyEvents> {
     });
     if (this.requireClientData && id === Packet.Login) void state.session.close(reason);
   }
+
   private unhook(state: ConnectionState) {
     for (const stop of state.hooks.splice(0)) stop();
   }
+
   private joinEvent(state: ConnectionState): PlayerJoinEvent {
     return Object.freeze({
       connectionId: state.session.connectionId,
       session: state.session,
       identity: state.identity,
       protocol: state.protocol,
-      clientData: (state.clientData ??= {} as ClientData), // fallback for failed verification; consumer can check identity.login
+      clientData: (state.clientData ??= {} as ClientData), // fallback for failed verification; consumer can check identity.verified
     });
   }
-  private readonly leave = (session: Session, reason: string) => {
+
+  private readonly leave = (session: ISession, reason: string) => {
     const state = this.connections.get(session.connectionId);
     if (!state || state.session !== session) return;
     this.connections.delete(session.connectionId);
     this.activePlayers.delete(session.connectionId);
     this.unhook(state);
     state.stopLogin?.();
-    this.notifyJoin(state);
+    if (reason !== 'identity_xuid_mismatch') this.notifyJoin(state);
     if (state.joinNotified) {
       this.emit(
         'playerLeave',
@@ -384,12 +391,15 @@ export class NetherNetProxy extends Emitter<ProxyEvents> {
     }
     this.emit('sessionClose', session, reason);
   };
+
   private readonly ready = (...args: RelayEvents['sessionReady']) => {
     this.emit('sessionReady', ...args);
   };
+
   private readonly packetError = (...args: RelayEvents['packetError']) => {
     this.emit('packetError', ...args);
   };
+  
   private readonly signalingRejected = (...args: RelayEvents['signalingRejected']) => {
     this.emit('signalingRejected', ...args);
   };
