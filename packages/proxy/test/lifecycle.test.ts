@@ -191,7 +191,7 @@ test('real packet observations produce Join → Spawn → Leave; duplicate packe
     verified: false,
     name: 'Alice',
     xuid: '123',
-    pfid: undefined,
+    persistentId: undefined,
   });
   assert.ok(!JSON.stringify(joined.identity).includes('secret'));
   a.inject('c2s', initialized(), initialized());
@@ -200,12 +200,13 @@ test('real packet observations produce Join → Spawn → Leave; duplicate packe
   assert.equal(player.identity, joined.identity);
   assert.equal(player.xuid, '123');
   assert.equal(player.name, 'Alice');
-  assert.equal(player.pfid, undefined);
+  assert.throws(() => player.persistentId, /Failed to read player identity/);
   assert.deepEqual(player.initialState.position, { x: 1, y: 64, z: 2 });
   assert.ok(Object.isFrozen(player.initialState.position));
   const snapshot = h.proxy.players;
-  assert.equal(player.send(initialized()), 'sent');
-  assert.equal(player.sendToServer(initialized()), 'sent');
+  const packet = new SetLocalPlayerAsInitializedPacket(initialized()).deserialize();
+  assert.equal(player.send(packet), 'sent');
+  assert.equal(player.sendToServer(packet), 'sent');
   // No remaining hook: an opaque, undecodable steady-state frame is relayed without diagnostics.
   const opaque = Buffer.from([0, 0xde, 0xad]);
   a.session.receive('c2s', 'reliable', opaque);
@@ -218,8 +219,8 @@ test('real packet observations produce Join → Spawn → Leave; duplicate packe
   assert.equal(left.player, player);
   assert.equal(left.reason, 'bye');
   assert.equal(snapshot.get('1'), player);
-  assert.throws(() => player.send(initialized()), /player_closed/);
-  assert.throws(() => player.sendToServer(initialized()), /player_closed/);
+  assert.throws(() => player.send(packet), /player_closed/);
+  assert.throws(() => player.sendToServer(packet), /player_closed/);
   await h.proxy.close();
 });
 
@@ -418,7 +419,7 @@ test('subclients are ignored and a matching signaling XUID does not authenticate
   assert.equal(joins, 1);
   assert.equal(player.xuid, '123');
   assert.equal(player.name, 'Alice');
-  assert.equal(player.pfid, undefined);
+  assert.throws(() => player.persistentId, /Failed to read player identity/);
   assert.equal(player.identity.verified, false);
   assert.equal(player.session.verifiedSignaling, signalingIdentity);
   assert.ok(Object.isFrozen(player.identity));
@@ -498,7 +499,7 @@ test('PoC-style verification preserves Serenity ClientData including skins and n
     verified: true,
     name: 'Alice',
     xuid: '123',
-    pfid: 'playfab',
+    persistentId: 'playfab',
   });
   assert.deepEqual(result.clientData, data);
   assert.ok(Object.isFrozen(result.clientData));
@@ -573,7 +574,7 @@ test('LoginSuccess and Initialized can arrive before verification; forwarding co
   assert.equal(player.identity.verified, true);
   assert.equal(player.xuid, '123');
   assert.equal(player.name, 'Alice');
-  assert.equal(player.pfid, 'playfab');
+  assert.equal(player.persistentId, 'playfab');
   await a.session.close();
   assert.deepEqual(order, ['join', 'spawn', 'leave']);
   await h.proxy.close();

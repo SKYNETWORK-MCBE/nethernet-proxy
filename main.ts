@@ -31,15 +31,24 @@ proxy.on('sessionClose', (session, reason) =>
     JSON.stringify({ event: 'session_close', connectionId: session.connectionId, reason }),
   ),
 );
+
 proxy.on('playerJoin', ({ connectionId, identity }) =>
   console.log(JSON.stringify({ event: 'player_join', connectionId, identity })),
 );
-proxy.on('playerSpawn', ({ player }) =>
-  console.log(JSON.stringify({ event: 'player_spawn', connectionId: player.connectionId })),
-);
+
+proxy.on('playerSpawn', ({ player }) => {
+  console.log(JSON.stringify({ event: 'player_spawn', connectionId: player.connectionId }));
+  console.log(player.identity)
+  setTimeout(() => {
+    const message = `Hello, ${player.name}! (xuid=${player.xuid}, pfid=${player.persistentId})`;
+    player.sendMessage(message);
+  }, 10_000)
+});
+
 proxy.on('playerLeave', ({ connectionId, reason }) =>
   console.log(JSON.stringify({ event: 'player_leave', connectionId, reason })),
 );
+
 try {
   await proxy.listen(Number(process.env.PROXY_PORT ?? 19134), '0.0.0.0');
 } catch (error) {

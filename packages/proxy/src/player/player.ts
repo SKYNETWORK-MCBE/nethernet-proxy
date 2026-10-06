@@ -38,7 +38,7 @@ export class Player {
     return this.identity.name;
   }
 
-  get pfid() {
+  get persistentId() {
     if (!this.identity.persistentId && !this.proxy.requireClientData) throw new Error('Failed to read player identity');
     return this.identity.persistentId;
   }

@@ -32,7 +32,7 @@ export function loginIdentity(identity: string): PlayerIdentity {
       verified: false,
       name: text(token.xname),
       xuid: text(token.xid),
-      pfid: text(token.mid),
+      persistentId: text(token.mid),
     });
   }
   if (data.Certificate !== undefined && typeof data.Certificate !== 'string')

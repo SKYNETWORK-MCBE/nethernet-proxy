@@ -31,7 +31,7 @@ export async function verifyLoginClientData(
       verified: true,
       name: online.gamertag,
       xuid: online.xuid,
-      pfid: online.playFabId,
+      persistentId: online.playFabId,
     }),
     clientData: Object.freeze(client),
   };
