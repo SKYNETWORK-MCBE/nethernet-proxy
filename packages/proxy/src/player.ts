@@ -1,7 +1,8 @@
 import type { SendOptions, ISession } from '@nethernet-proxy/relay';
-import type { ClientData } from '@serenityjs/protocol';
+import { TextPacket, TextType, TextVariant, TextVariantType, type ClientData } from '@serenityjs/protocol';
 import type { PlayerIdentity } from './identity';
 import type { NetherNetProxy } from './proxy';
+import type { RawMessage, RawText } from './types';
 
 export interface InitialPlayerState {
   readonly entityId: bigint;
@@ -48,6 +49,20 @@ export class Player {
 
   get closed() {
     return this.session.closed;
+  }
+
+  sendMessage(message: string | RawMessage) {
+    const rawText: RawText = {};
+    rawText.rawtext = typeof message === 'string' ? [{ text: message }] : message.rawtext;
+    
+    const pkt = new TextPacket();
+    pkt.isLocalized = true;
+    pkt.variantType = TextVariantType.MessageOnly;
+    pkt.variant = new TextVariant(JSON.stringify(rawText), TextType.Json);
+    pkt.xuid = '';
+    pkt.platformChatId = '';
+
+    this.send(pkt.serialize());
   }
 
   close(reason?: string) {
