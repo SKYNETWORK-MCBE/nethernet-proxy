@@ -33,13 +33,15 @@ jobs:
           node-version: '26.10.0'
           package-manager-cache: false
 
-      - name: Verify package version
+      - name: Verify package versions
         run: |
-          package_version="$(node -p "require('./packages/relay/package.json').version")"
-          if [ "v$package_version" != "$GITHUB_REF_NAME" ]; then
-            printf 'Tag %s does not match package version %s\n' "$GITHUB_REF_NAME" "$package_version" >&2
-            exit 1
-          fi
+          for package in emitter relay proxy; do
+            package_version="$(node -p "require('./packages/$package/package.json').version")"
+            if [ "v$package_version" != "$GITHUB_REF_NAME" ]; then
+              printf 'Tag %s does not match %s version %s\n' "$GITHUB_REF_NAME" "$package" "$package_version" >&2
+              exit 1
+            fi
+          done
 
       - name: Prepare package metadata
         id: package
@@ -47,16 +49,19 @@ jobs:
           node --input-type=module <<'NODE'
           import { appendFileSync, readFileSync, writeFileSync } from 'node:fs'
 
-          const path = 'packages/relay/package.json'
-          const pkg = JSON.parse(readFileSync(path, 'utf8'))
-          // Derive the repository from CI so OIDC/provenance also works on forks.
-          pkg.repository = {
-            type: 'git',
-            url: `git+${process.env.GITHUB_SERVER_URL}/${process.env.GITHUB_REPOSITORY}.git`,
-            directory: 'packages/relay',
+          for (const name of ['emitter', 'relay', 'proxy']) {
+            const path = `packages/${name}/package.json`
+            const pkg = JSON.parse(readFileSync(path, 'utf8'))
+            // Derive the repository from CI so OIDC/provenance also works on forks.
+            pkg.repository = {
+              type: 'git',
+              url: `git+${process.env.GITHUB_SERVER_URL}/${process.env.GITHUB_REPOSITORY}.git`,
+              directory: `packages/${name}`,
+            }
+            writeFileSync(path, `${JSON.stringify(pkg, null, 2)}\n`)
           }
-          writeFileSync(path, `${JSON.stringify(pkg, null, 2)}\n`)
 
+          const pkg = JSON.parse(readFileSync('packages/relay/package.json', 'utf8'))
           const prerelease = pkg.version.includes('-')
           appendFileSync(process.env.GITHUB_OUTPUT,
             `dist_tag=${prerelease ? 'next' : 'latest'}\nprerelease=${prerelease}\n`)
@@ -68,20 +73,27 @@ jobs:
       - run: pnpm test
 
       - name: Build and pack
-        # prepack runs pnpm build. Stage this exact same tarball.
-        run: pnpm --dir packages/relay pack --out "$RUNNER_TEMP/nethernet-proxy-relay.tgz"
+        # Build workspace dependencies before prepack generates declarations.
+        run: |
+          pnpm build
+          for package in emitter relay proxy; do
+            pnpm --dir "packages/$package" pack --out "$RUNNER_TEMP/nethernet-proxy-$package.tgz"
+          done
 
-      - name: Stage package on npm with OIDC
+      - name: Stage packages on npm with OIDC
         env:
           DIST_TAG: ${{ steps.package.outputs.dist_tag }}
         run: |
-          pnpm stage publish "$RUNNER_TEMP/nethernet-proxy-relay.tgz" \
-            --registry https://registry.npmjs.org \
-            --access public --tag "$DIST_TAG" --provenance --no-git-checks --json --reporter silent \
-            | tee "$RUNNER_TEMP/npm-stage.json"
+          for package in emitter relay proxy; do
+            pnpm stage publish "$RUNNER_TEMP/nethernet-proxy-$package.tgz" \
+              --registry https://registry.npmjs.org \
+              --access public --tag "$DIST_TAG" --provenance --no-git-checks --json --reporter silent \
+              | tee "$RUNNER_TEMP/npm-stage-$package.json"
+          done
+          jq -s '.' "$RUNNER_TEMP"/npm-stage-{emitter,relay,proxy}.json > "$RUNNER_TEMP/npm-stage.json"
           {
             echo '## npm staged publishing'
-            echo 'Review and approve the stage on npm before publishing the GitHub Release.'
+            echo 'Review and approve all stages on npm before publishing the GitHub Release.'
             echo '```json'
             cat "$RUNNER_TEMP/npm-stage.json"
             echo '```'
@@ -95,7 +107,7 @@ jobs:
         run: |
           {
             echo '## npm staged publishing'
-            echo 'This package is staged, not yet public. Run `pnpm stage approve <stage-id>` with 2FA (or approve on npmjs.com).'
+            echo 'These packages are staged, not yet public. Run `pnpm stage approve <stage-id>` for each stage with 2FA (or approve on npmjs.com).'
             echo 'Publish this GitHub Release manually after npm approval.'
             echo
             echo '```json'
