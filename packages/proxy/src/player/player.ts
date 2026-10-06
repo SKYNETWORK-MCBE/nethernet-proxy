@@ -1,8 +1,8 @@
 import type { SendOptions, ISession } from '@nethernet-proxy/relay';
-import { TextPacket, TextType, TextVariant, TextVariantType, type ClientData } from '@serenityjs/protocol';
-import type { PlayerIdentity } from './identity';
-import type { NetherNetProxy } from './proxy';
-import type { RawMessage, RawText } from './types';
+import { DataPacket, TextPacket, TextType, TextVariant, TextVariantType, type ClientData } from '@serenityjs/protocol';
+import type { PlayerIdentity } from '../identity';
+import type { NetherNetProxy } from '../proxy';
+import type { RawMessage, RawText } from '@serenityjs/core';
 
 export interface InitialPlayerState {
   readonly entityId: bigint;
@@ -62,7 +62,7 @@ export class Player {
     pkt.xuid = '';
     pkt.platformChatId = '';
 
-    this.send(pkt.serialize());
+    this.send(pkt);
   }
 
   close(reason?: string) {
@@ -70,13 +70,19 @@ export class Player {
   }
 
   /** Serialized single packet; no chat/title API or delivery acknowledgement. */
-  send(packet: Buffer, options?: SendOptions) {
+  send(packet: DataPacket, options?: SendOptions) {
     if (this.closed) throw new Error('player_closed');
-    return this.session.client.send(packet, options);
+
+    const buffer = packet.serialize();
+
+    return this.session.client.send(buffer, options);
   }
   
-  sendToServer(packet: Buffer, options?: SendOptions) {
+  sendToServer(packet: DataPacket, options?: SendOptions) {
     if (this.closed) throw new Error('player_closed');
-    return this.session.server.send(packet, options);
+
+    const buffer = packet.serialize();
+
+    return this.session.server.send(buffer, options);
   }
 }

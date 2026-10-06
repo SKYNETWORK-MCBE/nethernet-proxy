@@ -29,6 +29,7 @@
     "@nethernet-proxy/emitter": "workspace:*",
     "@nethernet-proxy/relay": "workspace:*",
     "@serenityjs/binarystream": "^3.1.0",
+    "@serenityjs/core": "^0.8.21",
     "@serenityjs/protocol": "0.8.21",
     "@serenityjs/raknet": "0.8.21",
     "nethernet-gateway": "^0.2.0"

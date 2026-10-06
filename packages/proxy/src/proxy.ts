@@ -22,8 +22,7 @@ import {
 import { StartGamePacket } from './protocol';
 import { loginIdentity } from './identity';
 import type { PlayerIdentity } from './identity';
-import { Player } from './player';
-import type { InitialPlayerState } from './player';
+import { Player, type InitialPlayerState } from './player';
 import type { PlayerJoinEvent, ProxyEvents } from './events';
 import { verifyLoginClientData } from './client-data';
 

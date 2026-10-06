@@ -1,7 +1,6 @@
 export { NetherNetProxy } from './proxy';
 export type { GatewaySetup, NetherNetProxyOptions } from './proxy';
-export { Player } from './player';
-export type { InitialPlayerState } from './player';
+export * from './player';
 export type { PlayerIdentity } from './identity';
 export type { ClientData } from '@serenityjs/protocol';
 export type { PlayerJoinEvent, PlayerSpawnEvent, PlayerLeaveEvent, ProxyEvents } from './events';
