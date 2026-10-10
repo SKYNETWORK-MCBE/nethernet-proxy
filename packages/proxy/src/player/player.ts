@@ -4,6 +4,7 @@ import type { PlayerIdentity } from '../identity';
 import type { NetherNetProxy } from '../proxy';
 import type { RawMessage, RawText } from '@serenityjs/core';
 import { ScreenDisplay } from './screen-display';
+import type { PlayerSkin } from './skin';
 
 export interface InitialPlayerState {
   readonly entityId: bigint;
@@ -25,7 +26,18 @@ export class Player {
     readonly initialState: InitialPlayerState,
     readonly protocol: number | undefined,
     readonly clientData: ClientData,
+    private currentSkin: PlayerSkin | undefined,
   ) {}
+
+  /** Login skin, then the latest PlayerSkin change. Undefined only when client data is unavailable. */
+  get skin() {
+    return this.currentSkin;
+  }
+
+  /** @internal */
+  setSkin(skin: PlayerSkin) {
+    this.currentSkin = skin;
+  }
 
   get connectionId() {
     return this.session.connectionId;

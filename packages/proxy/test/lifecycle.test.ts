@@ -12,13 +12,20 @@ import {
   StartGamePacket,
 } from '@serenityjs/protocol';
 import { NetherNetProxy } from '../src/index';
-import type { Player, PlayerJoinEvent, PlayerLeaveEvent } from '../src/index';
+import { PlayerSkin } from '../src/index';
+import type {
+  Player,
+  PlayerJoinEvent,
+  PlayerLeaveEvent,
+  PlayerSkinChangeEvent,
+} from '../src/index';
 import { loginIdentity } from '../src/identity';
 import { setup } from '../../relay/test/helpers/relay';
 import { encodePayload, fragmentPayload, uint } from '../../relay/src/framing';
 import { serverIdentity, offer } from '../../relay/test/helpers/sdp';
 import { Authentication } from '@bedrock-apis/carolina-authentication';
 import { verifyLoginClientData } from '../src/client-data';
+import { readPlayerSkinPacket } from '../src/protocol';
 import type { ClientData } from '../src/index';
 
 const clientKeys = generateKeyPairSync('ec', { namedCurve: 'secp384r1' });
@@ -207,11 +214,13 @@ test('real packet observations produce Join → Spawn → Leave; duplicate packe
   const packet = new SetLocalPlayerAsInitializedPacket(initialized()).deserialize();
   assert.equal(player.send(packet), 'sent');
   assert.equal(player.sendToServer(packet), 'sent');
-  // No remaining hook: an opaque, undecodable steady-state frame is relayed without diagnostics.
+  // No remaining s2c hook: an opaque, undecodable steady-state frame is relayed without diagnostics.
+  // c2s stays observed for PlayerSkin changes, so the same frame is reported but still forwarded.
   const opaque = Buffer.from([0, 0xde, 0xad]);
-  a.session.receive('c2s', 'reliable', opaque);
   a.session.receive('s2c', 'reliable', opaque);
   assert.deepEqual(a.errors, []);
+  a.session.receive('c2s', 'reliable', opaque);
+  assert.equal(a.session.closed, false);
   await player.close('bye');
   await player.close('again');
   h.relay.emit('sessionClose', a.session, 'duplicate');
@@ -563,7 +572,7 @@ test('LoginSuccess and Initialized can arrive before verification; forwarding co
   a.inject('c2s', initialized(), initialized());
   assert.deepEqual(order, []);
   // Completed packet tracking is already raw even while metadata verification is pending.
-  a.session.receive('c2s', 'reliable', Buffer.from([0, 0xde, 0xad]));
+  a.session.receive('s2c', 'reliable', Buffer.from([0, 0xde, 0xad]));
   assert.deepEqual(a.errors, []);
   await ready;
   const player = h.proxy.getPlayer('1')!;
@@ -783,4 +792,178 @@ test('invalid login verification limits are rejected before allocating a relay',
       () => new NetherNetProxy({ ...options, maxPendingLogins: value }),
       /invalid_login_limits/,
     );
+});
+
+const skinData = {
+  ...deviceData,
+  AnimatedImageData: [],
+  ArmSize: 'wide',
+  CapeData: '',
+  CapeId: '',
+  CapeImageHeight: 0,
+  CapeImageWidth: 0,
+  CapeOnClassicSkin: false,
+  OverrideSkin: false,
+  PersonaPieces: [],
+  PersonaSkin: false,
+  PieceTintColors: [],
+  PremiumSkin: false,
+  SkinAnimationData: '',
+  SkinColor: '#0',
+  SkinData: Buffer.alloc(64 * 64 * 4, 1).toString('base64'),
+  SkinGeometryData: Buffer.from('{"format_version":"1.12.0"}').toString('base64'),
+  SkinGeometryDataEngineVersion: Buffer.from('1.0.0').toString('base64'),
+  SkinId: 'login-skin',
+  SkinImageHeight: 64,
+  SkinImageWidth: 64,
+  SkinResourcePatch: Buffer.from('{}').toString('base64'),
+  TrustedSkin: true,
+} satisfies Partial<ClientData>;
+const varuint = (value: number) => {
+  const bytes: number[] = [];
+  do {
+    bytes.push((value & 0x7f) | (value > 0x7f ? 0x80 : 0));
+    value >>>= 7;
+  } while (value);
+  return Buffer.from(bytes);
+};
+const u32 = (value: number) => {
+  const buffer = Buffer.alloc(4);
+  buffer.writeUInt32LE(value);
+  return buffer;
+};
+const bytes = (value: Buffer | string) => {
+  const data = Buffer.from(value);
+  return Buffer.concat([varuint(data.length), data]);
+};
+// Current (1.26.x) layout per gophertunnel; SerenityJS 0.8.21 still encodes the pre-1.20 one.
+function skinPacket(id: string, width = 64, data = Buffer.alloc(width * 64 * 4, 2)) {
+  return Buffer.concat([
+    varuint(93),
+    Buffer.from('0807060504030201100f0e0d0c0b0a09', 'hex'),
+    bytes(id),
+    bytes(''),
+    bytes('{}'),
+    u32(width),
+    u32(64),
+    bytes(data),
+    varuint(1), // animation
+    u32(1),
+    u32(1),
+    bytes(Buffer.alloc(4)),
+    varuint(1),
+    Buffer.from([0, 0, 0x80, 0x3f]),
+    varuint(0),
+    u32(0), // cape
+    u32(0),
+    bytes(''),
+    bytes('{"format_version":"1.12.0"}'),
+    bytes('1.0.0'),
+    bytes(''),
+    bytes(''),
+    bytes(id),
+    Buffer.from([1]), // wide
+    Buffer.from([0x62, 0x7b, 0xb3, 0xff]),
+    varuint(1), // persona piece
+    bytes('piece'),
+    u32(3),
+    Buffer.alloc(16),
+    Buffer.from([1]),
+    bytes(''),
+    varuint(1), // tint
+    bytes('hair'),
+    Buffer.alloc(16),
+    Buffer.from([0, 0, 0, 0, 0]),
+    bytes('true'),
+    bytes('hash'),
+    bytes('new'),
+    bytes('old'),
+  ]);
+}
+
+test('PlayerSkin validates image sizes and exposes login skin fields', () => {
+  const skin = PlayerSkin.fromClientData(skinData as unknown as ClientData);
+  assert.equal(skin.id, 'login-skin');
+  assert.equal(skin.armSize, 'wide');
+  assert.equal(skin.skinImage.width, 64);
+  assert.deepEqual(skin.getGeometry(), { format_version: '1.12.0' });
+  assert.ok(Object.isFrozen(skin));
+  assert.throws(() => skin.toPng(), /not_implemented/);
+  assert.throws(
+    () => PlayerSkin.fromClientData({ ...skinData, SkinImageWidth: 32 } as unknown as ClientData),
+    /invalid_skin/,
+  );
+  assert.throws(() => PlayerSkin.fromClientData(deviceData as ClientData));
+});
+
+test('PlayerSkin packets decode the current layout and fail fast on stale or truncated data', () => {
+  const packet = readPlayerSkinPacket(skinPacket('wire'));
+  assert.equal(packet.uuid, '01020304-0506-0708-090a-0b0c0d0e0f10');
+  assert.equal(packet.newSkinName, 'new');
+  assert.equal(packet.oldSkinName, 'old');
+  assert.equal(packet.skin.id, 'wire');
+  assert.equal(packet.skin.armSize, 'wide');
+  assert.equal(packet.skin.skinColor, '#ffb37b62');
+  assert.equal(packet.skin.animations[0].frames, 1);
+  assert.equal(packet.skin.personaPieces[0].pieceType, 3);
+  assert.equal(packet.skin.tintPieces[0].colors.length, 4);
+  assert.equal(packet.skin.isTrusted, true);
+  assert.equal(packet.skin.profileHash, 'hash');
+  assert.equal(new PlayerSkin(packet.skin).getGeometry() instanceof Object, true);
+  // A huge element count must not loop over zero-filled reads (the 0.8.21 decoder hung here).
+  const huge = skinPacket('wire');
+  const animations = huge.indexOf(Buffer.concat([varuint(1), u32(1), u32(1)]), 60);
+  huge[animations] = 0xff;
+  const started = performance.now();
+  assert.throws(() => readPlayerSkinPacket(huge), /truncated_skin|varint_overflow/);
+  const full = skinPacket('wire');
+  for (const length of [1, 17, 40, full.length - 1])
+    assert.throws(() => readPlayerSkinPacket(full.subarray(0, length)), /truncated_skin/);
+  assert.ok(performance.now() - started < 100);
+});
+
+test('login skin is the initial Player.skin; c2s PlayerSkin updates it before and after spawn', async () => {
+  const h = harness(false, { requireClientData: undefined });
+  const a = h.add(1n, signalingIdentity);
+  const changes: PlayerSkinChangeEvent[] = [];
+  h.proxy.on('playerSkinChange', (event) => {
+    changes.push(event);
+  });
+  const spawned = new Promise<Player>((resolve) =>
+    h.proxy.once('playerSpawn', (event) => resolve(event.player)),
+  );
+  a.inject('c2s', signedLogin(skinData).serialize());
+  a.inject('s2c', success(), startGameBytes);
+  a.inject('c2s', initialized());
+  const player = await spawned;
+  assert.equal(player.skin?.id, 'login-skin');
+  const login = player.skin;
+  a.inject('c2s', skinPacket('changed'));
+  assert.equal(player.skin?.id, 'changed');
+  assert.equal(changes.length, 1);
+  assert.equal(changes[0].player, player);
+  assert.equal(changes[0].previous, login);
+  assert.equal(changes[0].skin, player.skin);
+  // Subclient packets and malformed skins are ignored without closing the session.
+  const subclient = skinPacket('subclient');
+  subclient[1] |= 0x04; // senderSubClientId = 1 in the header varint's second byte
+  a.inject('c2s', Buffer.concat([Buffer.from([subclient[0] | 0x80]), subclient.subarray(1)]));
+  a.inject('c2s', skinPacket('broken', 64, Buffer.alloc(3)));
+  assert.equal(player.skin?.id, 'changed');
+  assert.equal(changes.length, 1);
+  assert.ok(h.logs.some((log) => log.reason === 'invalid_skin'));
+  assert.equal(a.session.closed, false);
+  await h.proxy.close();
+
+  // A change during login verification wins over the login skin.
+  const early = harness(false, { requireClientData: undefined });
+  const b = early.add(1n, signalingIdentity);
+  const earlySpawn = new Promise<Player>((resolve) =>
+    early.proxy.once('playerSpawn', (event) => resolve(event.player)),
+  );
+  b.inject('c2s', signedLogin(skinData).serialize(), skinPacket('early'));
+  b.inject('s2c', success(), startGameBytes);
+  b.inject('c2s', initialized());
+  assert.equal((await earlySpawn).skin?.id, 'early');
+  await early.proxy.close();
 });
