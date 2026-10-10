@@ -1,6 +1,6 @@
 {
   "name": "@nethernet-proxy/proxy",
-  "version": "0.0.1",
+  "version": "0.0.2",
   "description": "High-level NetherNet proxy with player lifecycle events",
   "license": "MIT",
   "files": [
