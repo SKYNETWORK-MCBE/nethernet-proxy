@@ -4,6 +4,7 @@ import type { PlayerIdentity } from '../identity';
 import type { NetherNetProxy } from '../proxy';
 import type { RawMessage, RawText } from '@serenityjs/core';
 import { ScreenDisplay } from './screen-display';
+import type { BossBar } from '../ui';
 
 export interface InitialPlayerState {
   readonly entityId: bigint;
@@ -17,6 +18,8 @@ export interface InitialPlayerState {
 
 export class Player {
   readonly onScreenDisplay = new ScreenDisplay(this);
+  /** Proxy-owned boss bars currently shown to this player. */
+  readonly bossBars: ReadonlySet<BossBar> = new Set();
 
   constructor(
     private readonly proxy: NetherNetProxy,

@@ -1,5 +1,8 @@
 import type { AddressInfo } from 'node:net';
 import {
+  BossBar,
+  BossBarColor,
+  BossBarOverlay,
   NetherNetProxy,
   proxyServerIdentity,
   authenticateTransport,
@@ -36,16 +39,25 @@ proxy.on('playerJoin', ({ connectionId, identity }) =>
   console.log(JSON.stringify({ event: 'player_join', connectionId, identity })),
 );
 
+// BossBar demo: one bar shared by everyone and one per player.
+const sharedBar = new BossBar({ title: 'Shared bar', color: BossBarColor.Blue });
+
 proxy.on('playerSpawn', ({ player }) => {
   console.log(JSON.stringify({ event: 'player_spawn', connectionId: player.connectionId }));
-  console.log(player.identity)
-  setInterval(() => {
-    const message = `Hello, ${player.name}! (xuid=${player.xuid}, pfid=${player.persistentId})`;
-    player.sendMessage(message);
-    player.onScreenDisplay.setJukeboxPopup('This is JukeboxPopup');
-    player.onScreenDisplay.setToolTip('This is ToolTip');
-    player.onScreenDisplay.setToast('This is Toast', 'This is the message of the toast');
-  }, 5_000)
+  const ownBar = new BossBar({
+    title: `${player.name}'s bar`,
+    color: BossBarColor.Red,
+    overlay: BossBarOverlay.Notched10,
+  });
+  sharedBar.show(player);
+  ownBar.show(player);
+  let tick = 0;
+  const timer = setInterval(() => {
+    if (player.closed) return clearInterval(timer);
+    tick++;
+    ownBar.percent = (tick % 11) / 10;
+    sharedBar.title = `Shared bar (${tick}s)`;
+  }, 1_000);
 });
 
 proxy.on('playerLeave', ({ connectionId, reason }) =>
