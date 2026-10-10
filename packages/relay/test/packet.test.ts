@@ -1,7 +1,6 @@
 import { test } from 'vite-plus/test';
 import assert from 'node:assert/strict';
 import { deflateRawSync } from 'node:zlib';
-import { TextPacket, TextVariant, TextVariantType, TextType, Packet } from '@serenityjs/protocol';
 import {
   decodePayload,
   encodePayload,
@@ -133,29 +132,6 @@ test('all packets dropped produce neither output nor after, and same-bytes Buffe
   const input = frames([packet(999)])[0];
   session.receive('c2s', 'reliable', input);
   assert.equal(sent[1].frame, input);
-  session.dispose();
-});
-test('Serenity deserialize/serialize replacement preserves original subclient bits', () => {
-  const { session, hooks, sent } = setup();
-  const text = new TextPacket();
-  text.isLocalized = false;
-  text.variantType = TextVariantType.AuthorAndMessage;
-  text.variant = new TextVariant('old', TextType.Chat, 'test');
-  text.xuid = '';
-  text.platformChatId = '';
-  text.filtered = '';
-  const original = readPacket(text.serialize());
-  const bytes = Buffer.concat([Buffer.from([0x89, 0x08]), original.body]); // Text id 9, subclient 1
-  hooks.selector(Packet.Text).before((buffer) => {
-    const decoded = new TextPacket(buffer).deserialize();
-    decoded.variant.message = 'new';
-    return decoded.serialize();
-  });
-  for (const frame of frames([bytes])) session.receive('c2s', 'reliable', frame);
-  assert.ok(!session.closed);
-  const final = decodePayload(payload(sent.map((x) => x.frame))).packets[0];
-  assert.equal(final.header, 9 | 1024);
-  assert.equal(new TextPacket(final.bytes).deserialize().variant.message, 'new');
   session.dispose();
 });
 test('registration/unsubscription snapshots apply at the next batch, including callback changes', () => {

@@ -27,9 +27,6 @@
     "prepack": "pnpm build"
   },
   "dependencies": {
-    "@bedrock-apis/carolina-authentication": "1.0.0-beta.3",
-    "@serenityjs/binarystream": "^3.1.0",
-    "@serenityjs/protocol": "^0.8.21",
     "nethernet": "1.1.2",
     "nethernet-gateway": "^0.2.0",
     "prismarine-auth": "3.1.1",

@@ -55,7 +55,6 @@ hook未登録・圧縮交渉済みなら、packetを解凍・解析せず元fram
 | `prismarine-auth`                   | Proxy用アカウントのMicrosoft / Xbox / Minecraft認証。取得したMinecraft tokenからmultiplayer session tokenを得るHTTP処理は `src/auth.ts` が担当 |
 | Node.js `node:zlib` / `snappyjs`    | Deflate / Snappyの圧縮・解凍アルゴリズム。batch構造・圧縮header・適用タイミングは独自実装                                                      |
 | Node.js `node:crypto`               | 鍵生成、hash、署名などの暗号処理。identity token / SDP署名の形式は独自に組み立て                                                               |
-| `@serenityjs/protocol`              | 利用側hookでの各Bedrock packet bodyのdeserialize / serialize。例・testで使用                                                                   |
 | BDS                                 | game protocolの処理、world・game logic                                                                                                         |
 
 UDP socketとICE候補はWebRTC backendが管理します。現在使用する `nethernet` APIはUDPポート範囲指定を公開していません。
@@ -83,7 +82,7 @@ identity helperの既定保存先は実行directoryの `cache/` です。
 `Relay` がpacket中継を、`TransportGateway` がHTTP signalingを扱います。
 旧名 `TransportProxy` / `ProxyOptions` / `ProxyEvents` は互換aliasとして残しています。
 Playerと参加・退出event、gatewayの同時生成が必要なら [上位package](../proxy/README.md) を使ってください。
-以下のpacket処理例では、別途 `@serenityjs/protocol` をインストールしてください。
+packet bodyのdecode / encodeはrelayの対象外です。必要なら任意のprotocolライブラリを利用側で使ってください。
 
 ```ts
 import {
@@ -92,7 +91,8 @@ import {
   proxyServerIdentity,
   authenticateTransport,
 } from '@nethernet-proxy/relay';
-import { Packet, TextPacket } from '@serenityjs/protocol';
+
+const TEXT_PACKET_ID = 9;
 
 const serverUrl = 'http://127.0.0.1:19132';
 const response = await fetch(new URL('/v1/join', serverUrl));
@@ -112,17 +112,14 @@ proxy.on('sessionReady', (session) => {
 });
 proxy.on('sessionClose', (session, reason) => console.log('close', session.connectionId, reason));
 
-const text = proxy.packetHandler(Packet.Text, { direction: 'c2s' });
+const text = proxy.packetHandler(TEXT_PACKET_ID, { direction: 'c2s' });
 const stopBefore = text.before((buffer) => {
-  const packet = new TextPacket(buffer).deserialize();
-  // Serenity 0.8.21のTextはvariantにmessageを持つ。
-  packet.variant.message = packet.variant.message.replaceAll('example', 'replacement');
-  return packet.serialize();
+  // header + bodyの単一packet。何も返さなければ原本のまま転送、nullを返すと破棄、Bufferを返すと置換。
+  if (buffer.length > 1024) return null;
 });
 const stopAfter = text.after((buffer, context) => {
-  // 書き換え後の単一packet。UDP/batch/compression/fragment headerは含まない。
-  const packet = new TextPacket(buffer).deserialize();
-  console.log(context.connectionId, packet.variant.message);
+  // 転送後の単一packet。UDP/batch/compression/fragment headerは含まない。
+  console.log(context.connectionId, context.direction, buffer.length);
 });
 
 const gateway = new TransportGateway(proxy);

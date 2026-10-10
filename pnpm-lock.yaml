@@ -237,15 +237,6 @@ importers:
 
   packages/relay:
     dependencies:
-      '@bedrock-apis/carolina-authentication':
-        specifier: 1.0.0-beta.3
-        version: 1.0.0-beta.3
-      '@serenityjs/binarystream':
-        specifier: ^3.1.0
-        version: 3.1.0
-      '@serenityjs/protocol':
-        specifier: ^0.8.21
-        version: 0.8.21
       nethernet:
         specifier: 1.1.2
         version: 1.1.2
