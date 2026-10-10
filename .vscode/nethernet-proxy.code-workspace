@@ -1,0 +1,20 @@
+{
+  "folders": [
+    {
+      "name": "🎮 Proxy",
+      "path": "../packages/proxy"
+    },
+    {
+      "name": "🔁 Relay",
+      "path": "../packages/relay"
+    },
+    {
+      "name": "📢 Emitter",
+      "path": "../packages/emitter"
+    },
+    {
+      "name": "📁 Repository",
+      "path": "../"
+    }
+  ]
+}

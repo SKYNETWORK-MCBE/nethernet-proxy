@@ -3,6 +3,7 @@ import { DataPacket, TextPacket, TextType, TextVariant, TextVariantType, type Cl
 import type { PlayerIdentity } from '../identity';
 import type { NetherNetProxy } from '../proxy';
 import type { RawMessage, RawText } from '@serenityjs/core';
+import { ScreenDisplay } from './screen-display';
 
 export interface InitialPlayerState {
   readonly entityId: bigint;
@@ -15,6 +16,8 @@ export interface InitialPlayerState {
 }
 
 export class Player {
+  readonly onScreenDisplay = new ScreenDisplay(this);
+
   constructor(
     private readonly proxy: NetherNetProxy,
     readonly session: ISession,
