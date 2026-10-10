@@ -58,7 +58,7 @@ export class ScreenDisplay {
     // Create a new TextPacket.
     const packet = new TextPacket();
     packet.isLocalized = true;
-    packet.variantType = TextVariantType.MessageOnly;
+    packet.variantType = TextVariantType.MessageAndParams;
     packet.variant = new TextVariant(text, TextType.JukeboxPopup, "", []);
     packet.xuid = "";
     packet.platformChatId = "";

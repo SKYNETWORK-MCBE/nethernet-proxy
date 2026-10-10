@@ -39,10 +39,13 @@ proxy.on('playerJoin', ({ connectionId, identity }) =>
 proxy.on('playerSpawn', ({ player }) => {
   console.log(JSON.stringify({ event: 'player_spawn', connectionId: player.connectionId }));
   console.log(player.identity)
-  setTimeout(() => {
+  setInterval(() => {
     const message = `Hello, ${player.name}! (xuid=${player.xuid}, pfid=${player.persistentId})`;
     player.sendMessage(message);
-  }, 10_000)
+    player.onScreenDisplay.setJukeboxPopup('This is JukeboxPopup');
+    player.onScreenDisplay.setToolTip('This is ToolTip');
+    player.onScreenDisplay.setToast('This is Toast', 'This is the message of the toast');
+  }, 5_000)
 });
 
 proxy.on('playerLeave', ({ connectionId, reason }) =>
