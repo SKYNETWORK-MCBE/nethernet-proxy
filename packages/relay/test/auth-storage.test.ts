@@ -1,11 +1,12 @@
 import { test } from 'vite-plus/test';
 import assert from 'node:assert/strict';
 import { mkdtemp, stat, readdir } from 'node:fs/promises';
+import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { authStorage } from '../src/auth-storage';
 
 test('auth cache and key survive restart with restricted permissions', async () => {
-  const directory = await mkdtemp('/tmp/opencode/nethernet-auth-test-');
+  const directory = await mkdtemp(join(tmpdir(), 'nethernet-auth-test-'));
   const one = await authStorage(directory);
   const cache = one.cache({ cacheName: 'test', username: 'probe' });
   await cache.setCached({ dummy: 'not-a-real-token' });

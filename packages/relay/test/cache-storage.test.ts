@@ -1,6 +1,7 @@
 import { test, vi } from 'vite-plus/test';
 import assert from 'node:assert/strict';
 import { mkdtemp, readFile, stat, writeFile } from 'node:fs/promises';
+import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import {
   defaultCacheDirectory,
@@ -11,7 +12,7 @@ import { authStorage } from '../src/auth-storage';
 import { loadServerIdentity } from '../src/server-identity';
 
 test('proxy operator key persists with restricted permissions and concurrent creation', async () => {
-  const root = await mkdtemp('/tmp/opencode/nethernet-cache-test-');
+  const root = await mkdtemp(join(tmpdir(), 'nethernet-cache-test-'));
   const path = join(root, 'cache', 'server-identity.pem');
   const keys = await Promise.all(Array.from({ length: 4 }, () => persistentPrivateKey(path)));
   const pem = keys[0].export({ type: 'pkcs8', format: 'pem' });
@@ -27,7 +28,7 @@ test('proxy operator key persists with restricted permissions and concurrent cre
 });
 
 test('auth uses cache/auth and supports explicit directory and memory-only overrides', async () => {
-  const root = await mkdtemp('/tmp/opencode/nethernet-auth-path-');
+  const root = await mkdtemp(join(tmpdir(), 'nethernet-auth-path-'));
   vi.stubEnv('AUTH_MEMORY_ONLY', undefined);
   vi.stubEnv('PROXY_AUTH_DIR', undefined);
   vi.stubEnv('PROXY_CACHE_DIR', undefined);
@@ -45,7 +46,7 @@ test('auth uses cache/auth and supports explicit directory and memory-only overr
 });
 
 test('corrupt operator key is rejected rather than silently rotated', async () => {
-  const root = await mkdtemp('/tmp/opencode/nethernet-corrupt-key-');
+  const root = await mkdtemp(join(tmpdir(), 'nethernet-corrupt-key-'));
   const path = join(root, 'server-identity.pem');
   await writeFile(path, 'invalid-test-key');
   await assert.rejects(persistentPrivateKey(path));
