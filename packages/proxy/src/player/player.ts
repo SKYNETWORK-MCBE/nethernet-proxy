@@ -50,8 +50,14 @@ export class Player {
     return this.initialState.runtimeEntityId;
   }
 
+  /** True while the player's session is open. */
+  get isValid(): boolean {
+    return !this.session.closed;
+  }
+
+  /** @deprecated Use `isValid` instead. */
   get closed() {
-    return this.session.closed;
+    return !this.isValid;
   }
 
   sendMessage(message: string | RawMessage) {
@@ -84,7 +90,7 @@ export class Player {
 
   /** Serialized single packet; no chat/title API or delivery acknowledgement. */
   send(packet: DataPacket, options?: SendOptions) {
-    if (this.closed) throw new Error('player_closed');
+    if (!this.isValid) throw new Error('player_closed');
 
     const buffer = packet.serialize();
 
@@ -92,7 +98,7 @@ export class Player {
   }
   
   sendToServer(packet: DataPacket, options?: SendOptions) {
-    if (this.closed) throw new Error('player_closed');
+    if (!this.isValid) throw new Error('player_closed');
 
     const buffer = packet.serialize();
 
