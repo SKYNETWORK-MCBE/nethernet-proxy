@@ -2,7 +2,7 @@ import type { SendOptions, ISession } from '@nethernet-proxy/relay';
 import { DataPacket, TextPacket, TextType, TextVariant, TextVariantType, type ClientData } from '@serenityjs/protocol';
 import type { PlayerIdentity } from '../identity';
 import type { NetherNetProxy } from '../proxy';
-import type { RawMessage, RawText } from '@serenityjs/core';
+import type { RawMessage, RawText } from '../types';
 import { ScreenDisplay } from './screen-display';
 
 export interface InitialPlayerState {
