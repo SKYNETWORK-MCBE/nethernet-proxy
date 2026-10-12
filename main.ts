@@ -36,6 +36,20 @@ proxy.on('playerJoin', ({ connectionId, identity }) =>
   console.log(JSON.stringify({ event: 'player_join', connectionId, identity })),
 );
 
+setInterval(async () => {
+  for (const player of proxy.getPlayers()) {
+    const [ping, serverPing] = await Promise.all([player.getPing(), player.getServerPing()]);
+    console.log(
+      JSON.stringify({
+        event: 'player_ping',
+        connectionId: player.connectionId,
+        ping: ping ? Math.round(ping * 100) / 100 : null,
+        serverPing: serverPing ? Math.round(serverPing * 100) / 100 : null,
+      }),
+    );
+  }
+}, 10_000);
+
 proxy.on('playerSpawn', ({ player }) => {
   console.log(JSON.stringify({ event: 'player_spawn', connectionId: player.connectionId }));
   console.log(player.identity)

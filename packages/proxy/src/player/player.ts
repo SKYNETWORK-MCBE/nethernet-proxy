@@ -27,6 +27,7 @@ export class Player {
     readonly clientData: ClientData,
   ) {}
 
+  /** NetherNet connection ID of the client, as a decimal string. Key for `NetherNetProxy.getPlayer()`. */
   get connectionId() {
     return this.session.connectionId;
   }
