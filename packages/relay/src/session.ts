@@ -112,6 +112,16 @@ export class ProxySession implements ISession {
     if (this.ended) throw new Error('session_closed');
     return this.hooks.selector(id, options);
   }
+  async getPing(peer: 'client' | 'server' = 'client') {
+    const connection = peer === 'client' ? this.clientConnection : this.serverConnection;
+    if (this.ended || !connection?.rtcConnection) return undefined;
+    const stats = await connection.rtcConnection.getStats();
+    for (const s of stats.values()) {
+      if (s.type === 'candidate-pair' && s.nominated && s.currentRoundTripTime != null)
+        return s.currentRoundTripTime * 1000;
+    }
+    return undefined;
+  }
   setServerConnection(serverConnection: Connection) {
     this.serverConnection = serverConnection;
   }

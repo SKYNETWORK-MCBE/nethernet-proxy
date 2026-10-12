@@ -68,6 +68,16 @@ export class Player {
     this.send(pkt);
   }
 
+  /** Client-proxy round-trip time in ms; undefined until measured. */
+  getPing() {
+    return this.session.getPing('client');
+  }
+
+  /** Proxy-server round-trip time in ms; undefined until measured. */
+  getServerPing() {
+    return this.session.getPing('server');
+  }
+
   close(reason?: string) {
     return this.session.close(reason);
   }

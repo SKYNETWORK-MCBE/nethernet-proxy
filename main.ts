@@ -39,7 +39,7 @@ proxy.on('playerJoin', ({ connectionId, identity }) =>
 proxy.on('playerSpawn', ({ player }) => {
   console.log(JSON.stringify({ event: 'player_spawn', connectionId: player.connectionId }));
   console.log(player.identity)
-  setInterval(() => {
+  setTimeout(() => {
     const message = `Hello, ${player.name}! (xuid=${player.xuid}, pfid=${player.persistentId})`;
     player.sendMessage(message);
     player.onScreenDisplay.setJukeboxPopup('This is JukeboxPopup');

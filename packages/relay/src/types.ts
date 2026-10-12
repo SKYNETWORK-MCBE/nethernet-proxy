@@ -52,6 +52,8 @@ export interface ISession {
   readonly ready: boolean;
   readonly closed: boolean;
   packetHandler(id: number, options?: PacketSubscriptionOptions): PacketSelector;
+  /** Latest ICE round-trip time in ms between the proxy and `peer`; undefined until measured. */
+  getPing(peer?: 'client' | 'server'): Promise<number | undefined>;
   close(reason?: string): Promise<void>;
 }
 export interface RelayEvents {
