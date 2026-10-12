@@ -10,6 +10,7 @@ export type {
   Direction,
   Channel,
   ISession,
+  SignalingRequest,
   SessionPeer,
   SendOptions,
   SendResult,

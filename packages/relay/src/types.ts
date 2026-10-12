@@ -36,10 +36,17 @@ export interface SendOptions {
 export interface SessionPeer {
   send(packet: Buffer, options?: SendOptions): SendResult;
 }
+/** Detached snapshot of the HTTP signaling request. Headers are caller-supplied. */
+export interface SignalingRequest {
+  readonly headers: Headers;
+  readonly remoteAddress: string | undefined;
+}
 export interface ISession {
   readonly connectionId: string;
   readonly networkId?: string;
   readonly verifiedSignaling?: VerifiedSdpIdentity;
+  /** HTTP request that delivered the offer; undefined when not signaled through the gateway. */
+  readonly signalingRequest?: SignalingRequest;
   readonly client: SessionPeer;
   readonly server: SessionPeer;
   readonly ready: boolean;

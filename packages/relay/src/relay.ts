@@ -19,6 +19,7 @@ import type {
   ISession,
   RelayLimits,
   Log,
+  SignalingRequest,
 } from './types';
 
 interface Runtime {
@@ -79,7 +80,8 @@ export class Relay extends EventEmitter<RelayEvents> {
         webrtcBackend: options.webrtcBackend ?? 'werift',
         acceptTimeoutMs: options.acceptTimeoutMs ?? 20000,
       },
-      (connection, networkId, verified) => this.attach(connection, networkId, verified),
+      (connection, networkId, verified, request) =>
+        this.attach(connection, networkId, verified, request),
       publicUdp,
     );
     this.clientEndpoint.identity = clientSideIdentity;
@@ -122,13 +124,19 @@ export class Relay extends EventEmitter<RelayEvents> {
       this.log('event_listener_failed', { event });
     }
   }
-  private attach(clientConnection: Connection, networkId?: bigint, verified?: VerifiedSdpIdentity) {
+  private attach(
+    clientConnection: Connection,
+    networkId?: bigint,
+    verified?: VerifiedSdpIdentity,
+    request?: SignalingRequest,
+  ) {
     const id = clientConnection.address;
     const runtime: Runtime = {
       session: new ProxySession(
         clientConnection,
         networkId?.toString(),
         verified,
+        request,
         this.hooks,
         this.limits,
         {

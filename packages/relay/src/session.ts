@@ -19,6 +19,7 @@ import type {
   SendResult,
   ISession,
   SessionPeer,
+  SignalingRequest,
 } from './types';
 import type { VerifiedSdpIdentity } from './sdp-verifier';
 
@@ -78,6 +79,7 @@ export class ProxySession implements ISession {
     readonly clientConnection: Connection,
     readonly networkId: string | undefined,
     readonly verifiedSignaling: VerifiedSdpIdentity | undefined,
+    readonly signalingRequest: SignalingRequest | undefined,
     hooks: PacketHooks,
     private readonly limits: RelayLimits,
     private readonly callbacks: SessionCallbacks,

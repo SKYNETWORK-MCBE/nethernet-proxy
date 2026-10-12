@@ -16,6 +16,7 @@ import { signSdpIdentity, renewServerIdentity } from './server-identity';
 import { sdpHash, SdpVerificationError } from './sdp-verifier';
 import type { SdpVerifier, VerifiedSdpIdentity } from './sdp-verifier';
 import { onClientConnectionCreated, onServerConnectionCreated } from './raw-channels';
+import type { SignalingRequest } from './types';
 
 export { captureChannels } from './raw-channels';
 
@@ -122,6 +123,13 @@ async function freeInternalPort(mappings: ReturnType<typeof portMappings>, addre
       if (await bindable(port, address)) return port;
 }
 
+type Attach = (
+  connection: Connection,
+  networkId?: bigint,
+  verified?: VerifiedSdpIdentity,
+  request?: SignalingRequest,
+) => void;
+
 /** Proxy endpoint accepting connections from clients. */
 export class ClientEndpoint extends NetherNetServer {
   identity?: Identity;
@@ -135,11 +143,12 @@ export class ClientEndpoint extends NetherNetServer {
   #negotiating = new Set<bigint>();
   #peers = new Map<bigint, bigint | undefined>();
   #identities = new Map<bigint, VerifiedSdpIdentity | undefined>();
-  attach: (connection: Connection, networkId?: bigint, verified?: VerifiedSdpIdentity) => void;
+  #requests = new Map<bigint, SignalingRequest | undefined>();
+  attach: Attach;
   publicUdp?: PublicUdpPorts;
   constructor(
     options: NetherNetServerOptions,
-    attach: (connection: Connection, networkId?: bigint, verified?: VerifiedSdpIdentity) => void,
+    attach: Attach,
     publicUdp?: PublicUdpPorts,
   ) {
     super(options);
@@ -192,13 +201,16 @@ export class ClientEndpoint extends NetherNetServer {
     onServerConnectionCreated(this, (connection) => {
       if (!this.#peers.has(connection.address)) return;
       const verified = this.#identities.get(connection.address);
+      const request = this.#requests.get(connection.address);
       this.#identities.delete(connection.address);
-      this.attach(connection, this.#peers.get(connection.address), verified);
+      this.#requests.delete(connection.address);
+      this.attach(connection, this.#peers.get(connection.address), verified, request);
     });
     this.on('closeConnection', (id) => {
       this.#negotiating.delete(id);
       this.#peers.delete(id);
       this.#identities.delete(id);
+      this.#requests.delete(id);
     });
     this.on('openConnection', (connection) => this.#negotiating.delete(connection.address));
   }
@@ -207,6 +219,7 @@ export class ClientEndpoint extends NetherNetServer {
     respond: (signal: SignalStructure) => void,
     credentials?: NetherNetServerOptions['credentials'],
     abortSignal?: AbortSignal,
+    request?: SignalingRequest,
   ) {
     // Snapshot before asynchronous validation. The caller cannot swap SDP,
     // peer ID or connection ID after the verification has started.
@@ -249,7 +262,7 @@ export class ClientEndpoint extends NetherNetServer {
       if (!this.offerVerifier) {
         this.#pending.delete(snapshot.connectionId);
         await abortable(
-          this.acceptOffer(snapshot, respond, credentials, undefined, cancellation),
+          this.acceptOffer(snapshot, respond, credentials, undefined, cancellation, request),
           cancellation,
         );
         return;
@@ -266,7 +279,7 @@ export class ClientEndpoint extends NetherNetServer {
       // Move the reservation from pending to connections synchronously inside super.handleOffer.
       this.#pending.delete(snapshot.connectionId);
       await abortable(
-        this.acceptOffer(snapshot, respond, credentials, boundIdentity, cancellation),
+        this.acceptOffer(snapshot, respond, credentials, boundIdentity, cancellation, request),
         cancellation,
       );
     } catch (error: unknown) {
@@ -317,9 +330,11 @@ export class ClientEndpoint extends NetherNetServer {
     credentials?: NetherNetServerOptions['credentials'],
     verified?: VerifiedSdpIdentity,
     cancellation?: AbortSignal,
+    request?: SignalingRequest,
   ) {
     this.#peers.set(signal.connectionId, signal.networkId);
     this.#identities.set(signal.connectionId, verified);
+    this.#requests.set(signal.connectionId, request);
     let answered = false;
     try {
       await super.handleOffer(
@@ -342,6 +357,7 @@ export class ClientEndpoint extends NetherNetServer {
       if (!this.connections.has(signal.connectionId)) {
         this.#peers.delete(signal.connectionId);
         this.#identities.delete(signal.connectionId);
+        this.#requests.delete(signal.connectionId);
         // The server connection can fail while the answer to the client is still being generated.
         // Do not leave its HTTP offer waiting until the gateway deadline.
         if (!answered && !cancellation?.aborted && !this.#stopped.signal.aborted) {
