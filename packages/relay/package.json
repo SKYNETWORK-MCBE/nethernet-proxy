@@ -1,6 +1,6 @@
 {
   "name": "@nethernet-proxy/relay",
-  "version": "0.0.4",
+  "version": "0.1.0",
   "description": "NetherNet transport relay with synchronous Bedrock packet hooks",
   "keywords": [],
   "license": "MIT",
