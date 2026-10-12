@@ -1,6 +1,7 @@
 import { test } from 'vite-plus/test';
 import assert from 'node:assert/strict';
 import { createServer } from 'node:http';
+import { createSocket } from 'node:dgram';
 import { randomBytes } from 'node:crypto';
 import type { AddressInfo } from 'node:net';
 import { SignalType } from 'nethernet';
@@ -12,6 +13,8 @@ import {
   captureChannels,
   useHttpSignaling,
   trackConnectionClose,
+  addPublicCandidates,
+  validatePublicUdp,
 } from '../src/transport';
 import { Relay } from '../src/relay';
 import { TransportGateway } from '../src/gateway';
@@ -295,5 +298,89 @@ test('session injection compression and framing round-trip is compatible with tr
     let payload: Buffer | null = null;
     for (const frame of encoded) payload = decoder.push(frame);
     assert.deepEqual(decodePayload(payload!, { compression: true }).packets[0].bytes, packet(9));
+  }
+});
+
+test('public UDP candidates map forwarded local host ports', () => {
+  const sdp = [
+    'v=0',
+    'a=candidate:a 1 udp 2116026367 192.168.10.4 30002 typ host generation 0 ufrag x',
+    'a=candidate:b 1 udp 2116026367 172.17.0.1 31000 typ host generation 0 ufrag x',
+    'a=candidate:c 1 udp 2116026367 10.0.17.4 52840 typ host generation 0 ufrag x',
+    'a=end-of-candidates',
+    '',
+  ].join('\r\n');
+  const result = addPublicCandidates(sdp, {
+    address: '139.162.72.61',
+    ports: [
+      { external: [40000, 40010], internal: [30000, 30010] },
+      { external: 41000, internal: 31000 },
+    ],
+  });
+  assert.deepEqual(
+    result.split('\r\n').filter((line) => line.startsWith('a=candidate:public')),
+    [
+      'a=candidate:public40002 1 udp 2116026367 139.162.72.61 40002 typ host generation 0 ufrag x',
+      'a=candidate:public41000 1 udp 2116026367 139.162.72.61 41000 typ host generation 0 ufrag x',
+    ],
+  );
+  assert.ok(result.indexOf('139.162.72.61') < result.indexOf('a=end-of-candidates'));
+  assert.throws(() =>
+    validatePublicUdp({ address: 'x', ports: [{ external: [1, 3], internal: [1, 2] }] }),
+  );
+  assert.throws(() => validatePublicUdp({ address: 'x', ports: [] }));
+  // Overlapping internal ranges would make the public port ambiguous.
+  assert.throws(() =>
+    validatePublicUdp({ address: 'x', ports: [{ external: [1, 3] }, { external: 3 }] }),
+  );
+});
+
+test('public UDP sessions use the next free internal port across ranges', async () => {
+  const occupy = (port: number) =>
+    new Promise<ReturnType<typeof createSocket>>((resolve) => {
+      const socket = createSocket('udp4');
+      socket.bind(port, () => resolve(socket));
+    });
+  const sockets = await Promise.all([41870, 41871].map(occupy));
+  const endpoint = new ClientEndpoint({ webrtcBackend: 'werift' }, () => {}, {
+    address: '203.0.113.10',
+    ports: [
+      { external: [40000, 40001], internal: [41870, 41871] },
+      { external: 40500, internal: 41880 },
+    ],
+  });
+  async function offer(connectionId: bigint) {
+    const client = createServerConnector(endpoint.networkId, {}, () => {});
+    const data = new Promise<string>((resolve) => {
+      client.signalHandler = (signal) => {
+        if (signal.type === SignalType.ConnectRequest) resolve(signal.data);
+      };
+    });
+    client.connect();
+    const replies: { type: string; data: string }[] = [];
+    await endpoint.handleOffer(
+      {
+        type: SignalType.ConnectRequest,
+        connectionId,
+        networkId: client.networkId,
+        data: await data,
+      },
+      (reply) => replies.push({ type: reply.type, data: reply.data }),
+    );
+    client.close('done');
+    return replies.filter((reply) => reply.type !== SignalType.CandidateAdd);
+  }
+  try {
+    const [answer] = await offer(1n);
+    assert.equal(answer.type, SignalType.ConnectResponse);
+    const candidates = answer.data.split('\r\n').filter((line) => line.startsWith('a=candidate'));
+    assert.equal(candidates.length, 2);
+    assert.match(candidates[0], / 41880 typ host /);
+    assert.match(candidates[1], /^a=candidate:public40500 .* 203\.0\.113\.10 40500 typ host /);
+    // Every internal port is now in use: the offer fails immediately.
+    assert.deepEqual(await offer(2n), [{ type: SignalType.ConnectError, data: '12' }]);
+  } finally {
+    endpoint.close('done');
+    for (const socket of sockets) socket.close();
   }
 });

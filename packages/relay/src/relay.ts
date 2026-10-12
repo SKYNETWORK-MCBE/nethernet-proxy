@@ -48,6 +48,7 @@ export class Relay extends EventEmitter<RelayEvents> {
       maxPendingOffers = 8,
       offerTimeoutMs = 20000,
       log = () => {},
+      publicUdp,
       ...rest
     } = options;
     const url = new URL(serverUrl);
@@ -79,6 +80,7 @@ export class Relay extends EventEmitter<RelayEvents> {
         acceptTimeoutMs: options.acceptTimeoutMs ?? 20000,
       },
       (connection, networkId, verified) => this.attach(connection, networkId, verified),
+      publicUdp,
     );
     this.clientEndpoint.identity = clientSideIdentity;
     this.clientEndpoint.offerVerifier = verifyOffer;

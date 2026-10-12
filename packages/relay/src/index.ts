@@ -5,6 +5,7 @@ export { createSdpVerifier, SdpVerificationError } from './sdp-verifier';
 export type { SdpVerifier, VerifiedSdpIdentity } from './sdp-verifier';
 export { proxyServerIdentity, loadServerIdentity, renewServerIdentity } from './server-identity';
 export { authenticateTransport } from './auth';
+export type { PublicUdpPorts, PublicUdpMapping } from './transport';
 export type {
   Direction,
   Channel,

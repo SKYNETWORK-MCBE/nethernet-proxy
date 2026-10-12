@@ -1,3 +1,5 @@
+import { createSocket } from 'node:dgram';
+import { networkInterfaces } from 'node:os';
 import {
   Client as NetherNetClient,
   Server as NetherNetServer,
@@ -17,6 +19,109 @@ import { onClientConnectionCreated, onServerConnectionCreated } from './raw-chan
 
 export { captureChannels } from './raw-channels';
 
+type PortRange = number | readonly [number, number];
+
+/** One BDS server-udp-ports entry: an external port (range) forwarded to an internal one. */
+export interface PublicUdpMapping {
+  external: PortRange;
+  /** Same length as external. Defaults to external. */
+  internal?: PortRange;
+}
+
+/** Equivalent of BDS server-udp-ports: a public address forwarded to fixed local UDP ports. */
+export interface PublicUdpPorts {
+  /** Address advertised to clients. */
+  address: string;
+  /** Tried in order; each session binds one free internal port. */
+  ports: readonly PublicUdpMapping[];
+  /** Local IPv4 address to bind and advertise as host candidate. Defaults to all interfaces. */
+  interfaceAddress?: string;
+}
+
+const toRange = (range: PortRange): [number, number] =>
+  typeof range === 'number' ? [range, range] : [range[0], range[1]];
+
+function portMappings({ address, ports }: PublicUdpPorts) {
+  const mappings = ports.map(({ external, internal = external }) => ({
+    external: toRange(external),
+    internal: toRange(internal),
+  }));
+  const valid = (range: number[]) =>
+    range.every((port) => Number.isInteger(port) && port > 0 && port < 65536) &&
+    range[0] <= range[1];
+  const internals = mappings.map(({ internal }) => internal).sort((a, b) => a[0] - b[0]);
+  if (
+    !address ||
+    !mappings.length ||
+    mappings.some(
+      ({ external, internal }) =>
+        !valid(external) ||
+        !valid(internal) ||
+        external[1] - external[0] !== internal[1] - internal[0],
+    ) ||
+    internals.some((range, index) => index > 0 && range[0] <= internals[index - 1][1])
+  )
+    throw new Error('invalid_public_udp');
+  return mappings;
+}
+
+export function validatePublicUdp(publicUdp: PublicUdpPorts) {
+  portMappings(publicUdp);
+}
+
+/** Append a public candidate for each forwarded local host port. */
+export function addPublicCandidates(sdp: string, publicUdp: PublicUdpPorts) {
+  const mappings = portMappings(publicUdp);
+  const eol = sdp.includes('\r\n') ? '\r\n' : '\n';
+  const lines = sdp.split(/\r?\n/);
+  const added: string[] = [];
+  let last = -1;
+  for (const [index, line] of lines.entries()) {
+    if (!line.startsWith('a=candidate:')) continue;
+    last = index;
+    // a=candidate:<foundation> <component> <transport> <priority> <address> <port> typ <type> ...
+    const fields = line.split(' ');
+    const port = Number(fields[5]);
+    if (fields[2]?.toLowerCase() !== 'udp' || fields[7] !== 'host') continue;
+    const mapping = mappings.find(({ internal }) => port >= internal[0] && port <= internal[1]);
+    if (!mapping) continue;
+    const mapped = port - mapping.internal[0] + mapping.external[0];
+    fields[0] = `a=candidate:public${mapped}`;
+    fields[4] = publicUdp.address;
+    fields[5] = String(mapped);
+    const candidate = fields.join(' ');
+    if (!added.includes(candidate)) added.push(candidate);
+  }
+  if (!added.length) return sdp;
+  lines.splice(last + 1, 0, ...added);
+  return lines.join(eol);
+}
+
+async function bindable(port: number, address: string) {
+  const socket = createSocket('udp4');
+  try {
+    await new Promise<void>((resolve, reject) => {
+      socket.once('error', reject);
+      socket.bind(port, address, resolve);
+    });
+    return true;
+  } catch {
+    return false;
+  } finally {
+    try {
+      socket.close();
+    } catch {
+      /* bind failed */
+    }
+  }
+}
+
+async function freeInternalPort(mappings: ReturnType<typeof portMappings>, address: string) {
+  for (const { internal } of mappings)
+    for (let port = internal[0]; port <= internal[1]; port++)
+      if (await bindable(port, address)) return port;
+}
+
 /** Proxy endpoint accepting connections from clients. */
 export class ClientEndpoint extends NetherNetServer {
   identity?: Identity;
@@ -31,12 +136,59 @@ export class ClientEndpoint extends NetherNetServer {
   #peers = new Map<bigint, bigint | undefined>();
   #identities = new Map<bigint, VerifiedSdpIdentity | undefined>();
   attach: (connection: Connection, networkId?: bigint, verified?: VerifiedSdpIdentity) => void;
+  publicUdp?: PublicUdpPorts;
   constructor(
     options: NetherNetServerOptions,
     attach: (connection: Connection, networkId?: bigint, verified?: VerifiedSdpIdentity) => void,
+    publicUdp?: PublicUdpPorts,
   ) {
     super(options);
     this.attach = attach;
+    if (publicUdp) {
+      const mappings = portMappings(publicUdp);
+      if ((options.webrtcBackend ?? 'werift') !== 'werift')
+        throw new Error('public_udp_requires_werift');
+      this.publicUdp = publicUdp;
+      const self = this as unknown as {
+        webrtc: { RTCPeerConnection: new (config: object) => any };
+      };
+      const Base = self.webrtc.RTCPeerConnection;
+      const bindAddress = publicUdp.interfaceAddress ?? '0.0.0.0';
+      // Werift binds udp4 and gathers only host addresses listed here, so each session
+      // opens a single socket. Several sockets would race for the same fixed port.
+      const iceInterfaceAddresses = {
+        udp4: bindAddress,
+        host:
+          publicUdp.interfaceAddress ??
+          Object.values(networkInterfaces())
+            .flat()
+            .find((info) => info?.family === 'IPv4' && !info.internal)?.address,
+      };
+      // Werift probes a free port and binds it later without an error handler.
+      // Gather one connection at a time so sessions do not pick the same port.
+      let gathering = Promise.resolve();
+      self.webrtc = {
+        ...self.webrtc,
+        RTCPeerConnection: class extends Base {
+          constructor(config: object) {
+            super({ ...config, iceInterfaceAddresses });
+          }
+          setLocalDescription(description: unknown) {
+            const result = gathering.then(async () => {
+              const port = await freeInternalPort(mappings, bindAddress);
+              if (port === undefined) throw new Error('public_udp_exhausted');
+              for (const ice of this.iceTransports) ice.connection.options.portRange = [port, port];
+              return super.setLocalDescription(description);
+            });
+            gathering = result.then(
+              () => {},
+              () => {},
+            );
+            return result;
+          }
+        },
+      };
+    }
     onServerConnectionCreated(this, (connection) => {
       if (!this.#peers.has(connection.address)) return;
       const verified = this.#identities.get(connection.address);
@@ -173,6 +325,8 @@ export class ClientEndpoint extends NetherNetServer {
       await super.handleOffer(
         signal,
         (reply) => {
+          if (reply.type === SignalType.ConnectResponse && this.publicUdp)
+            reply.data = addPublicCandidates(reply.data, this.publicUdp);
           if (reply.type === SignalType.ConnectResponse && this.identity) {
             reply.data = signSdpIdentity(
               reply.data,

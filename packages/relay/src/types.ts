@@ -4,6 +4,7 @@ import type {
   ServerOptions as NetherNetServerOptions,
 } from 'nethernet';
 import type { SdpVerifier, VerifiedSdpIdentity } from './sdp-verifier';
+import type { PublicUdpPorts } from './transport';
 
 export type Direction = 'c2s' | 's2c';
 export type Channel = 'reliable' | 'unreliable';
@@ -73,6 +74,8 @@ export interface RelayOptions extends NetherNetServerOptions, Partial<RelayLimit
     NetherNetClientOptions,
     'identity' | 'networkId' | 'connectionId' | 'webrtcBackend'
   >;
+  /** Public address/ports forwarded to the client-side sockets, like BDS server-udp-ports. */
+  publicUdp?: PublicUdpPorts;
   maxSessions?: number;
   maxPendingOffers?: number;
   offerTimeoutMs?: number;
