@@ -2,7 +2,7 @@ export { NetherNetProxy } from './proxy';
 export type { GatewaySetup, NetherNetProxyOptions } from './proxy';
 export * from './player';
 export * from './ui';
-export { BossBarColor, BossBarOverlay } from './protocol';
+export { BossbarColor, BossbarOverlay } from './protocol';
 export type * from './types';
 export type { PlayerIdentity } from './identity';
 export type { ClientData } from '@serenityjs/protocol';

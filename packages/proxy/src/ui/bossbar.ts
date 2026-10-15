@@ -13,19 +13,19 @@ import {
 import {
   ActorMetadataType,
   AddActorPacket,
-  BossBarColor,
-  BossBarOverlay,
+  BossbarColor,
+  BossbarOverlay,
   BossEventPacket,
   BossEventType,
 } from '../protocol';
 import type { Player } from '../player';
 
-export interface BossBarOptions {
+export interface BossbarOptions {
   title?: string;
   /** 0.0-1.0 */
   percent?: number;
-  color?: BossBarColor;
-  overlay?: BossBarOverlay;
+  color?: BossbarColor;
+  overlay?: BossbarOverlay;
 }
 
 // Server-assigned actor ids never reach this range; ids are per client, so one id per bar suffices.
@@ -39,19 +39,19 @@ const dimensionHooks = new WeakMap<Player, () => void>();
  * A boss bar owned by the proxy. One bar can be shown to many players; updates go to all of them.
  * The client only shows bars of known entities, so each viewer gets an invisible dummy actor.
  */
-export class BossBar {
+export class Bossbar {
   readonly uniqueId = nextUniqueId--;
   private readonly viewers = new Set<Player>();
   #title: string;
   #percent: number;
-  #color: BossBarColor;
-  #overlay: BossBarOverlay;
+  #color: BossbarColor;
+  #overlay: BossbarOverlay;
 
-  constructor(options: BossBarOptions = {}) {
+  constructor(options: BossbarOptions = {}) {
     this.#title = options.title ?? '';
     this.#percent = checkPercent(options.percent ?? 1);
-    this.#color = options.color ?? BossBarColor.Pink;
-    this.#overlay = options.overlay ?? BossBarOverlay.Progress;
+    this.#color = options.color ?? BossbarColor.Pink;
+    this.#overlay = options.overlay ?? BossbarOverlay.Progress;
   }
 
   get players(): ReadonlySet<Player> {
@@ -77,7 +77,7 @@ export class BossBar {
   get color() {
     return this.#color;
   }
-  set color(value: BossBarColor) {
+  set color(value: BossbarColor) {
     this.#color = value;
     this.broadcast(BossEventType.Texture);
   }
@@ -85,7 +85,7 @@ export class BossBar {
   get overlay() {
     return this.#overlay;
   }
-  set overlay(value: BossBarOverlay) {
+  set overlay(value: BossbarOverlay) {
     this.#overlay = value;
     this.broadcast(BossEventType.Texture);
   }
@@ -95,7 +95,7 @@ export class BossBar {
     if (!player.isValid) throw new Error('player_closed');
     if (this.viewers.has(player)) player.send(this.removeDummy());
     this.viewers.add(player);
-    const bars = player.bossBars as Set<BossBar>;
+    const bars = player.bossbars as Set<Bossbar>;
     bars.add(this);
     if (!dimensionHooks.has(player)) dimensionHooks.set(player, watchDimension(player));
     player.send(this.dummy(player));
@@ -110,7 +110,7 @@ export class BossBar {
     const remove = this.removeDummy().serialize();
     for (const target of targets) {
       this.viewers.delete(target);
-      const bars = target.bossBars as Set<BossBar>;
+      const bars = target.bossbars as Set<Bossbar>;
       bars.delete(this);
       if (!bars.size) {
         dimensionHooks.get(target)?.();
@@ -177,7 +177,7 @@ function watchDimension(player: Player) {
       if (!player.isValid) return;
       const packet = new ServerboundLoadingScreenPacketPacket(buffer).deserialize();
       if (packet.type !== ServerboundLoadingScreenType.EndLoadingScreen) return;
-      for (const bar of player.bossBars) bar.show(player);
+      for (const bar of player.bossbars) bar.show(player);
     });
 }
 

@@ -101,14 +101,14 @@ signaling identityがある場合は、認証済みLogin tokenのXUIDと照合�
 名前やPlayFab IDは比較せずLogin側を採用します。未検証LoginのXUIDがsignalingと一致しても `verified: true` にしません。
 signaling情報がない場合は照合を省略し、`verified` はLoginの署名検証結果を表します。詳細なsignaling情報は `player.session.verifiedSignaling` で取得できます。
 
-## BossBar
+## Bossbar
 
 proxyが所有するボスバーです。1本を複数Playerに表示でき、更新は表示中の全員へ同じBufferで送ります。
 
 ```ts
-import { BossBar, BossBarColor, BossBarOverlay } from '@nethernet-proxy/proxy';
+import { Bossbar, BossbarColor, BossbarOverlay } from '@nethernet-proxy/proxy';
 
-const bar = new BossBar({ title: 'Event', percent: 1, color: BossBarColor.Blue });
+const bar = new Bossbar({ title: 'Event', percent: 1, color: BossbarColor.Blue });
 bar.show(player);
 bar.percent = 0.5; // title / color / overlayも同様
 bar.hide(player); // 引数なしで全員から非表示
@@ -120,7 +120,7 @@ bar.hide(player); // 引数なしで全員から非表示
 - ディメンション移動でclientはバーを消すため、自動で再表示します。そのため、バーを表示している間だけそのsessionのc2s ServerboundLoadingScreen（ロード画面の終了）を観測します（c2s batchを展開します。転送は保留しません）。死亡・リスポーンでは消えません。
 - `percent` は0〜1に丸め、有限でない値は拒否します。
 - `show()` を表示中のPlayerへ再度呼ぶと現在の状態で再送します。
-- `player.bossBars` は表示中のバーです。退出したPlayerは自動で外れます。
+- `player.bossbars` は表示中のバーです。退出したPlayerは自動で外れます。
 
 ## Loginのclient data
 

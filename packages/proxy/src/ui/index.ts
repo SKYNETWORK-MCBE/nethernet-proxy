@@ -1,1 +1,1 @@
-export * from './boss-bar';
+export * from './bossbar';

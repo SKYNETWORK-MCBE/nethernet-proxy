@@ -14,7 +14,7 @@ export enum BossEventType {
   Request,
 }
 
-export enum BossBarColor {
+export enum BossbarColor {
   Pink,
   Blue,
   Red,
@@ -25,7 +25,7 @@ export enum BossBarColor {
   White,
 }
 
-export enum BossBarOverlay {
+export enum BossbarOverlay {
   Progress,
   Notched6,
   Notched10,
@@ -52,8 +52,8 @@ export class BossEventPacket extends DataPacket {
   percent!: number;
 
   @Serialize(Uint8)
-  color!: BossBarColor;
+  color!: BossbarColor;
 
   @Serialize(Uint8)
-  overlay!: BossBarOverlay;
+  overlay!: BossbarOverlay;
 }

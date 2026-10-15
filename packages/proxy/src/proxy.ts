@@ -383,7 +383,7 @@ export class NetherNetProxy extends Emitter<ProxyEvents> {
     if (!state || state.session !== session) return;
     this.connections.delete(session.connectionId);
     this.activePlayers.delete(session.connectionId);
-    for (const bar of state.player?.bossBars ?? []) bar.hide(state.player);
+    for (const bar of state.player?.bossbars ?? []) bar.hide(state.player);
     this.unhook(state);
     state.stopLogin?.();
     if (reason !== 'identity_xuid_mismatch') this.notifyJoin(state);

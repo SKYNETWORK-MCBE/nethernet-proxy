@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict';
 import { test } from 'vite-plus/test';
-import { BossBar, BossBarColor, BossBarOverlay } from '../src/index';
+import { Bossbar, BossbarColor, BossbarOverlay } from '../src/index';
 import type { Player } from '../src/index';
 import { DataPacket, Packet, ServerboundLoadingScreenType, Vector3f } from '@serenityjs/protocol';
 import { ActorMetadataType, AddActorPacket, BossEventPacket, BossEventType } from '../src/protocol';
@@ -10,7 +10,7 @@ function viewer() {
   const hooks: { id: number; callback: (buffer: Buffer) => void; active: boolean }[] = [];
   const player = {
     isValid: true,
-    bossBars: new Set(),
+    bossbars: new Set(),
     initialState: { position: { x: 1, y: 64, z: 2 } },
     send: (packet: DataPacket) => sent.push(packet.serialize()),
     session: {
@@ -44,8 +44,8 @@ test('BossEvent uses the 1.26.50 flat layout', () => {
   packet.title = 'ab';
   packet.filteredTitle = 'ab';
   packet.percent = 0.5;
-  packet.color = BossBarColor.Blue;
-  packet.overlay = BossBarOverlay.Notched10;
+  packet.color = BossbarColor.Blue;
+  packet.overlay = BossbarOverlay.Notched10;
   // id 74, zigzag(-5)=9, u8 type, title x2, f32le, u8 color, u8 overlay
   assert.equal(
     packet.serialize().toString('hex'),
@@ -97,8 +97,8 @@ test('AddActor uses the 1.26.50 metadata layout with the legacy type byte', () =
 test('show, broadcast updates, hide and closed viewers', () => {
   const a = viewer();
   const b = viewer();
-  const bar = new BossBar({ title: 'Boss', percent: 2, color: BossBarColor.Red });
-  const other = new BossBar();
+  const bar = new Bossbar({ title: 'Boss', percent: 2, color: BossbarColor.Red });
+  const other = new Bossbar();
   assert.notEqual(bar.uniqueId, other.uniqueId);
   assert.ok(bar.uniqueId > 1n << 62n);
 
@@ -115,12 +115,12 @@ test('show, broadcast updates, hide and closed viewers', () => {
   assert.equal(shown.bossUniqueId, bar.uniqueId);
   assert.equal(shown.title, 'Boss');
   assert.equal(shown.percent, 1);
-  assert.equal(shown.color, BossBarColor.Red);
-  assert.ok(a.player.bossBars.has(bar));
+  assert.equal(shown.color, BossbarColor.Red);
+  assert.ok(a.player.bossbars.has(bar));
 
   bar.percent = 0.25;
   bar.title = 'Phase 2';
-  bar.overlay = BossBarOverlay.Notched6;
+  bar.overlay = BossbarOverlay.Notched6;
   assert.deepEqual(
     a.sent.slice(2).map((buffer) => decode(buffer).type),
     [BossEventType.HealthPercentage, BossEventType.Title, BossEventType.Texture],
@@ -128,7 +128,7 @@ test('show, broadcast updates, hide and closed viewers', () => {
   const last = decode(b.sent.at(-1)!);
   assert.equal(last.title, 'Phase 2');
   assert.equal(last.percent, 0.25);
-  assert.equal(last.overlay, BossBarOverlay.Notched6);
+  assert.equal(last.overlay, BossbarOverlay.Notched6);
   // The same serialized buffer is shared by every viewer.
   assert.equal(a.sent.at(-1), b.sent.at(-1));
   assert.throws(() => (bar.percent = Number.NaN), /invalid_boss_bar_percent/);
@@ -136,10 +136,10 @@ test('show, broadcast updates, hide and closed viewers', () => {
   bar.hide(a.player);
   assert.deepEqual(ids(a.sent.slice(-2)), [74, 14]);
   assert.equal(decode(a.sent.at(-2)!).type, BossEventType.Hide);
-  assert.ok(!a.player.bossBars.has(bar));
+  assert.ok(!a.player.bossbars.has(bar));
   const count = a.sent.length;
   bar.hide(a.player);
-  bar.color = BossBarColor.Green;
+  bar.color = BossbarColor.Green;
   assert.equal(a.sent.length, count);
 
   // A closed viewer is dropped on the next update without sending.
@@ -153,13 +153,13 @@ test('show, broadcast updates, hide and closed viewers', () => {
   bar.show(a.player);
   other.show(a.player);
   bar.hide();
-  assert.deepEqual([...a.player.bossBars], [other]);
+  assert.deepEqual([...a.player.bossbars], [other]);
 });
 
 test('a c2s dimension-change hook exists only while a bar is shown and re-shows every bar', () => {
   const a = viewer();
-  const first = new BossBar({ title: 'one' });
-  const second = new BossBar({ title: 'two' });
+  const first = new Bossbar({ title: 'one' });
+  const second = new Bossbar({ title: 'two' });
   first.show(a.player);
   second.show(a.player);
   assert.equal(a.activeHooks().length, 1);
