@@ -178,7 +178,7 @@ test('real packet observations produce Join → Spawn → Leave; duplicate packe
   h.proxy.on('playerLeave', (event) => {
     left = event;
     assert.equal(h.proxy.players.size, 0);
-    assert.ok(event.player?.closed);
+    assert.ok(event.player && !event.player.isValid);
     order.push('leave');
   });
   const a = h.add();
@@ -487,7 +487,7 @@ test('gateway teardown failure still closes relay, removes Players and detaches 
   assert.equal(closeRelay.mock.calls.length, 1);
   assert.equal(h.relay.listenerCount('sessionOpen'), 0);
   assert.equal(h.proxy.players.size, 0);
-  assert.ok(player.closed);
+  assert.ok(!player.isValid);
 });
 
 test('PoC-style verification preserves Serenity ClientData including skins and nested claims', async () => {

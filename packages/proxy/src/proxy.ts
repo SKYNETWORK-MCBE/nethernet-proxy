@@ -134,6 +134,10 @@ export class NetherNetProxy extends Emitter<ProxyEvents> {
     return this.gateway.listen(port, host);
   }
 
+  getPlayers() {
+    return Array.from(this.activePlayers.values());
+  }
+
   private readonly open = (session: ISession) => {
     if (this.stopped || session.closed || this.connections.has(session.connectionId)) return;
     const state: ConnectionState = {

@@ -9,7 +9,7 @@ function viewer() {
   const sent: Buffer[] = [];
   const hooks: { id: number; callback: (buffer: Buffer) => void; active: boolean }[] = [];
   const player = {
-    closed: false,
+    isValid: true,
     bossBars: new Set(),
     initialState: { position: { x: 1, y: 64, z: 2 } },
     send: (packet: DataPacket) => sent.push(packet.serialize()),
@@ -143,7 +143,7 @@ test('show, broadcast updates, hide and closed viewers', () => {
   assert.equal(a.sent.length, count);
 
   // A closed viewer is dropped on the next update without sending.
-  b.state.closed = true;
+  b.state.isValid = false;
   const sent = b.sent.length;
   bar.title = 'gone';
   assert.equal(b.sent.length, sent);

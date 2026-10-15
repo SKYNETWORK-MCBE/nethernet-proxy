@@ -92,7 +92,7 @@ export class BossBar {
 
   /** Shows the bar. Calling it again for a viewer re-sends the bar with its current state. */
   show(player: Player) {
-    if (player.closed) throw new Error('player_closed');
+    if (!player.isValid) throw new Error('player_closed');
     if (this.viewers.has(player)) player.send(this.removeDummy());
     this.viewers.add(player);
     const bars = player.bossBars as Set<BossBar>;
@@ -116,7 +116,7 @@ export class BossBar {
         dimensionHooks.get(target)?.();
         dimensionHooks.delete(target);
       }
-      if (target.closed) continue;
+      if (!target.isValid) continue;
       target.session.client.send(buffer);
       target.session.client.send(remove);
     }
@@ -126,7 +126,7 @@ export class BossBar {
     if (!this.viewers.size) return;
     const buffer = this.packet(type);
     for (const viewer of this.viewers) {
-      if (viewer.closed) this.hide(viewer);
+      if (!viewer.isValid) this.hide(viewer);
       else viewer.session.client.send(buffer);
     }
   }
@@ -174,7 +174,7 @@ function watchDimension(player: Player) {
   return player.session
     .packetHandler(Packet.ServerboundLoadingScreenPacket, { direction: 'c2s' })
     .after((buffer) => {
-      if (player.closed) return;
+      if (!player.isValid) return;
       const packet = new ServerboundLoadingScreenPacketPacket(buffer).deserialize();
       if (packet.type !== ServerboundLoadingScreenType.EndLoadingScreen) return;
       for (const bar of player.bossBars) bar.show(player);

@@ -4,6 +4,7 @@ import type {
   ServerOptions as NetherNetServerOptions,
 } from 'nethernet';
 import type { SdpVerifier, VerifiedSdpIdentity } from './sdp-verifier';
+import type { PublicUdpPorts } from './transport';
 
 export type Direction = 'c2s' | 's2c';
 export type Channel = 'reliable' | 'unreliable';
@@ -35,15 +36,24 @@ export interface SendOptions {
 export interface SessionPeer {
   send(packet: Buffer, options?: SendOptions): SendResult;
 }
+/** Detached snapshot of the HTTP signaling request. Headers are caller-supplied. */
+export interface SignalingRequest {
+  readonly headers: Headers;
+  readonly remoteAddress: string | undefined;
+}
 export interface ISession {
   readonly connectionId: string;
   readonly networkId?: string;
   readonly verifiedSignaling?: VerifiedSdpIdentity;
+  /** HTTP request that delivered the offer; undefined when not signaled through the gateway. */
+  readonly signalingRequest?: SignalingRequest;
   readonly client: SessionPeer;
   readonly server: SessionPeer;
   readonly ready: boolean;
   readonly closed: boolean;
   packetHandler(id: number, options?: PacketSubscriptionOptions): PacketSelector;
+  /** Latest ICE round-trip time in ms between the proxy and `peer`; undefined until measured. */
+  getPing(peer?: 'client' | 'server'): Promise<number | undefined>;
   close(reason?: string): Promise<void>;
 }
 export interface RelayEvents {
@@ -73,6 +83,8 @@ export interface RelayOptions extends NetherNetServerOptions, Partial<RelayLimit
     NetherNetClientOptions,
     'identity' | 'networkId' | 'connectionId' | 'webrtcBackend'
   >;
+  /** Public address/ports forwarded to the client-side sockets, like BDS server-udp-ports. */
+  publicUdp?: PublicUdpPorts;
   maxSessions?: number;
   maxPendingOffers?: number;
   offerTimeoutMs?: number;

@@ -37,7 +37,7 @@ proxy.on('playerSpawn', ({ player, initialSpawn }) => {
 });
 proxy.on('playerLeave', ({ connectionId, player, reason }) => {
   // Join後・Spawn前の退出ならplayerはundefined。生成済みならclosed。
-  console.log(connectionId, player?.closed, reason);
+  console.log(connectionId, player?.isValid, reason);
 });
 
 await proxy.listen(19134, '127.0.0.1');

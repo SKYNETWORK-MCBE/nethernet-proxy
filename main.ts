@@ -42,6 +42,20 @@ proxy.on('playerJoin', ({ connectionId, identity }) =>
 // BossBar demo: one bar shared by everyone and one per player.
 const sharedBar = new BossBar({ title: 'Shared bar', color: BossBarColor.Blue });
 
+setInterval(async () => {
+  for (const player of proxy.getPlayers()) {
+    const [ping, serverPing] = await Promise.all([player.getPing(), player.getServerPing()]);
+    console.log(
+      JSON.stringify({
+        event: 'player_ping',
+        connectionId: player.connectionId,
+        ping: ping ? Math.round(ping * 100) / 100 : null,
+        serverPing: serverPing ? Math.round(serverPing * 100) / 100 : null,
+      }),
+    );
+  }
+}, 10_000);
+
 proxy.on('playerSpawn', ({ player }) => {
   console.log(JSON.stringify({ event: 'player_spawn', connectionId: player.connectionId }));
   const ownBar = new BossBar({
@@ -53,11 +67,19 @@ proxy.on('playerSpawn', ({ player }) => {
   ownBar.show(player);
   let tick = 0;
   const timer = setInterval(() => {
-    if (player.closed) return clearInterval(timer);
+    if (!player.isValid) return clearInterval(timer);
     tick++;
     ownBar.percent = (tick % 11) / 10;
     sharedBar.title = `Shared bar (${tick}s)`;
   }, 1_000);
+  console.log(player.identity)
+  setTimeout(() => {
+    const message = `Hello, ${player.name}! (xuid=${player.xuid}, pfid=${player.persistentId})`;
+    player.sendMessage(message);
+    player.onScreenDisplay.setJukeboxPopup('This is JukeboxPopup');
+    player.onScreenDisplay.setToolTip('This is ToolTip');
+    player.onScreenDisplay.setToast('This is Toast', 'This is the message of the toast');
+  }, 5_000)
 });
 
 proxy.on('playerLeave', ({ connectionId, reason }) =>

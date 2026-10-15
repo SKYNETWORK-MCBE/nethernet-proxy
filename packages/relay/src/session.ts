@@ -19,6 +19,7 @@ import type {
   SendResult,
   ISession,
   SessionPeer,
+  SignalingRequest,
 } from './types';
 import type { VerifiedSdpIdentity } from './sdp-verifier';
 
@@ -78,6 +79,7 @@ export class ProxySession implements ISession {
     readonly clientConnection: Connection,
     readonly networkId: string | undefined,
     readonly verifiedSignaling: VerifiedSdpIdentity | undefined,
+    readonly signalingRequest: SignalingRequest | undefined,
     hooks: PacketHooks,
     private readonly limits: RelayLimits,
     private readonly callbacks: SessionCallbacks,
@@ -109,6 +111,16 @@ export class ProxySession implements ISession {
   packetHandler(id: number, options?: PacketSubscriptionOptions) {
     if (this.ended) throw new Error('session_closed');
     return this.hooks.selector(id, options);
+  }
+  async getPing(peer: 'client' | 'server' = 'client') {
+    const connection = peer === 'client' ? this.clientConnection : this.serverConnection;
+    if (this.ended || !connection?.rtcConnection) return undefined;
+    const stats = await connection.rtcConnection.getStats();
+    for (const s of stats.values()) {
+      if (s.type === 'candidate-pair' && s.nominated && s.currentRoundTripTime != null)
+        return s.currentRoundTripTime * 1000;
+    }
+    return undefined;
   }
   setServerConnection(serverConnection: Connection) {
     this.serverConnection = serverConnection;

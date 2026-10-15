@@ -2,7 +2,7 @@ import type { SendOptions, ISession } from '@nethernet-proxy/relay';
 import { DataPacket, TextPacket, TextType, TextVariant, TextVariantType, type ClientData } from '@serenityjs/protocol';
 import type { PlayerIdentity } from '../identity';
 import type { NetherNetProxy } from '../proxy';
-import type { RawMessage, RawText } from '@serenityjs/core';
+import type { RawMessage, RawText } from '../types';
 import { ScreenDisplay } from './screen-display';
 import type { BossBar } from '../ui';
 
@@ -30,6 +30,7 @@ export class Player {
     readonly clientData: ClientData,
   ) {}
 
+  /** NetherNet connection ID of the client, as a decimal string. Key for `NetherNetProxy.getPlayer()`. */
   get connectionId() {
     return this.session.connectionId;
   }
@@ -53,8 +54,14 @@ export class Player {
     return this.initialState.runtimeEntityId;
   }
 
+  /** True while the player's session is open. */
+  get isValid(): boolean {
+    return !this.session.closed;
+  }
+
+  /** @deprecated Use `isValid` instead. */
   get closed() {
-    return this.session.closed;
+    return !this.isValid;
   }
 
   sendMessage(message: string | RawMessage) {
@@ -71,13 +78,23 @@ export class Player {
     this.send(pkt);
   }
 
+  /** Client-proxy round-trip time in ms; undefined until measured. */
+  getPing() {
+    return this.session.getPing('client');
+  }
+
+  /** Proxy-server round-trip time in ms; undefined until measured. */
+  getServerPing() {
+    return this.session.getPing('server');
+  }
+
   close(reason?: string) {
     return this.session.close(reason);
   }
 
   /** Serialized single packet; no chat/title API or delivery acknowledgement. */
   send(packet: DataPacket, options?: SendOptions) {
-    if (this.closed) throw new Error('player_closed');
+    if (!this.isValid) throw new Error('player_closed');
 
     const buffer = packet.serialize();
 
@@ -85,7 +102,7 @@ export class Player {
   }
   
   sendToServer(packet: DataPacket, options?: SendOptions) {
-    if (this.closed) throw new Error('player_closed');
+    if (!this.isValid) throw new Error('player_closed');
 
     const buffer = packet.serialize();
 
