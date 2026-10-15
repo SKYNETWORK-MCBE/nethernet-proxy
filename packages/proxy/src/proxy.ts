@@ -19,7 +19,7 @@ import {
   SetLocalPlayerAsInitializedPacket,
   type ClientData,
 } from '@serenityjs/protocol';
-import { StartGamePacket, readPlayerSkinPacket } from './protocol';
+import { SafePlayerSkinPacket, StartGamePacket } from './protocol';
 import { loginIdentity } from './identity';
 import type { PlayerIdentity } from './identity';
 import { Player, PlayerSkin, type InitialPlayerState } from './player';
@@ -268,7 +268,7 @@ export class NetherNetProxy extends Emitter<ProxyEvents> {
           return;
         let skin: PlayerSkin;
         try {
-          skin = new PlayerSkin(readPlayerSkinPacket(buffer).skin);
+          skin = new PlayerSkin(new SafePlayerSkinPacket(buffer).deserialize().skin);
         } catch {
           this.relay.log('player_tracking_error', {
             connectionId: session.connectionId,

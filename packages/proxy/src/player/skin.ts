@@ -24,7 +24,7 @@ export class PlayerSkin {
   readonly data: SerializedSkin;
 
   constructor(data: SerializedSkin) {
-    // Same RGBA size checks as gophertunnel's Skin.validate; the cape may be empty.
+    // RGBA サイズを検証する。ケープは空でもよい。
     if (
       !validImage(data.skinImage) ||
       data.skinImage.data.length === 0 ||
@@ -38,34 +38,6 @@ export class PlayerSkin {
 
   static fromClientData(data: ClientData) {
     return new PlayerSkin(SerializedSkin.from(data));
-  }
-
-  get id() {
-    return this.data.identifier;
-  }
-
-  get fullId() {
-    return this.data.fullIdentifier;
-  }
-
-  get armSize() {
-    return this.data.armSize;
-  }
-
-  get isPersona() {
-    return this.data.isPersona;
-  }
-
-  get isPremium() {
-    return this.data.isPremium;
-  }
-
-  get skinImage() {
-    return this.data.skinImage;
-  }
-
-  get capeImage() {
-    return this.data.capeImage;
   }
 
   getGeometry(): unknown {

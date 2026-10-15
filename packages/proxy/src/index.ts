@@ -6,13 +6,18 @@ export { BossbarColor, BossbarOverlay } from './protocol';
 export type * from './types';
 export type { PlayerIdentity } from './identity';
 export type { ClientData } from '@serenityjs/protocol';
-export type {
+export {
   SerializedSkin,
   SkinImage,
   SkinAnimation,
   SkinPersonaPiece,
   SkinPersonaTintPiece,
-} from './protocol/types';
+  SkinColor,
+  PersonaPieceType,
+  PlayerSkinPacket,
+  SafePlayerSkinPacket,
+  SafeRead,
+} from './protocol';
 export type {
   PlayerJoinEvent,
   PlayerSpawnEvent,
@@ -26,4 +31,8 @@ export {
   proxyServerIdentity,
   authenticateTransport,
 } from '@nethernet-proxy/relay';
-export type { RelayOptions, TransportGatewayOptions, ISession as Session } from '@nethernet-proxy/relay';
+export type {
+  RelayOptions,
+  TransportGatewayOptions,
+  ISession as Session,
+} from '@nethernet-proxy/relay';

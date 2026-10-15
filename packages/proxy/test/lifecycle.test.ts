@@ -25,7 +25,7 @@ import { encodePayload, fragmentPayload, uint } from '../../relay/src/framing';
 import { serverIdentity, offer } from '../../relay/test/helpers/sdp';
 import { Authentication } from '@bedrock-apis/carolina-authentication';
 import { verifyLoginClientData } from '../src/client-data';
-import { PlayerSkinPacket, readPlayerSkinPacket } from '../src/protocol';
+import { PlayerSkinPacket, SafePlayerSkinPacket } from '../src/protocol';
 import type { ClientData } from '../src/index';
 
 const clientKeys = generateKeyPairSync('ec', { namedCurve: 'secp384r1' });
@@ -840,7 +840,7 @@ const bytes = (value: Buffer | string) => {
   const data = Buffer.from(value);
   return Buffer.concat([varuint(data.length), data]);
 };
-// Current (1.26.x) layout per gophertunnel; SerenityJS 0.8.21 still encodes the pre-1.20 one.
+// 1.26.51 (protocol 2193) のレイアウト。SerenityJS 0.8.21 の SerializedSkin はこれより古い。
 function skinPacket(id: string, width = 64, data = Buffer.alloc(width * 64 * 4, 2)) {
   return Buffer.concat([
     varuint(93),
@@ -887,9 +887,9 @@ function skinPacket(id: string, width = 64, data = Buffer.alloc(width * 64 * 4, 
 
 test('PlayerSkin validates image sizes and exposes login skin fields', () => {
   const skin = PlayerSkin.fromClientData(skinData as unknown as ClientData);
-  assert.equal(skin.id, 'login-skin');
-  assert.equal(skin.armSize, 'wide');
-  assert.equal(skin.skinImage.width, 64);
+  assert.equal(skin.data.identifier, 'login-skin');
+  assert.equal(skin.data.armSize, 'wide');
+  assert.equal(skin.data.skinImage.width, 64);
   assert.deepEqual(skin.getGeometry(), { format_version: '1.12.0' });
   assert.ok(Object.isFrozen(skin));
   assert.throws(() => skin.toPng(), /not_implemented/);
@@ -901,7 +901,7 @@ test('PlayerSkin validates image sizes and exposes login skin fields', () => {
 });
 
 test('PlayerSkin packets decode the current layout and fail fast on stale or truncated data', () => {
-  const packet = readPlayerSkinPacket(skinPacket('wire'));
+  const packet = new SafePlayerSkinPacket(skinPacket('wire')).deserialize();
   assert.equal(packet.uuid, '01020304-0506-0708-090a-0b0c0d0e0f10');
   assert.equal(packet.skinName, 'new');
   assert.equal(packet.oldSkinName, 'old');
@@ -919,15 +919,21 @@ test('PlayerSkin packets decode the current layout and fail fast on stale or tru
   const written = new PlayerSkinPacket();
   Object.assign(written, packet);
   assert.deepEqual(Buffer.from(written.serialize()), skinPacket('wire'));
-  // A huge element count must not loop over zero-filled reads (the 0.8.21 decoder hung here).
+  // 巨大な要素数でも、EOF 越えの 0 を読み続けてループしないこと (BinaryStream 素のままだと固まる)。
   const huge = skinPacket('wire');
   const animations = huge.indexOf(Buffer.concat([varuint(1), u32(1), u32(1)]), 60);
   huge[animations] = 0xff;
   const started = performance.now();
-  assert.throws(() => readPlayerSkinPacket(huge), /truncated_packet|VarInt exceeds/);
+  assert.throws(
+    () => new SafePlayerSkinPacket(huge).deserialize(),
+    /truncated_packet|VarInt exceeds/,
+  );
   const full = skinPacket('wire');
   for (const length of [1, 17, 40, full.length - 1])
-    assert.throws(() => readPlayerSkinPacket(full.subarray(0, length)), /truncated_packet/);
+    assert.throws(
+      () => new SafePlayerSkinPacket(full.subarray(0, length)).deserialize(),
+      /truncated_packet/,
+    );
   assert.ok(performance.now() - started < 100);
 });
 
@@ -945,10 +951,10 @@ test('login skin is the initial Player.skin; c2s PlayerSkin updates it before an
   a.inject('s2c', success(), startGameBytes);
   a.inject('c2s', initialized());
   const player = await spawned;
-  assert.equal(player.skin?.id, 'login-skin');
+  assert.equal(player.skin?.data.identifier, 'login-skin');
   const login = player.skin;
   a.inject('c2s', skinPacket('changed'));
-  assert.equal(player.skin?.id, 'changed');
+  assert.equal(player.skin?.data.identifier, 'changed');
   assert.equal(changes.length, 1);
   assert.equal(changes[0].player, player);
   assert.equal(changes[0].previous, login);
@@ -958,7 +964,7 @@ test('login skin is the initial Player.skin; c2s PlayerSkin updates it before an
   subclient[1] |= 0x04; // senderSubClientId = 1 in the header varint's second byte
   a.inject('c2s', Buffer.concat([Buffer.from([subclient[0] | 0x80]), subclient.subarray(1)]));
   a.inject('c2s', skinPacket('broken', 64, Buffer.alloc(3)));
-  assert.equal(player.skin?.id, 'changed');
+  assert.equal(player.skin?.data.identifier, 'changed');
   assert.equal(changes.length, 1);
   assert.ok(h.logs.some((log) => log.reason === 'invalid_skin'));
   assert.equal(a.session.closed, false);
@@ -973,6 +979,6 @@ test('login skin is the initial Player.skin; c2s PlayerSkin updates it before an
   b.inject('c2s', signedLogin(skinData).serialize(), skinPacket('early'));
   b.inject('s2c', success(), startGameBytes);
   b.inject('c2s', initialized());
-  assert.equal((await earlySpawn).skin?.id, 'early');
+  assert.equal((await earlySpawn).skin?.data.identifier, 'early');
   await early.proxy.close();
 });

@@ -10,7 +10,7 @@ import { VarString } from '@serenityjs/binarystream';
 import { DataPacket, Packet } from '@serenityjs/protocol';
 import { Proto, Serialize } from '@serenityjs/raknet';
 
-import { SafeRead } from './safe-read-stream';
+import { SafeRead } from './safe-read';
 import { SerializedSkin, Uuid } from './types';
 
 // [MC] 末尾の isVerified を削除 (SerializedSkin の isTrusted に移動)
@@ -25,9 +25,5 @@ class PlayerSkinPacket extends DataPacket {
 export { PlayerSkinPacket };
 
 // ここから下は Serenity に無い独自部分 (リリース後も残す)。
-const SafePlayerSkinPacket = SafeRead(PlayerSkinPacket);
-
-/** クライアント由来の PlayerSkin を読む。壊れた長さで固まらないよう境界チェック付きで読む。 */
-export function readPlayerSkinPacket(buffer: Buffer): PlayerSkinPacket {
-  return new SafePlayerSkinPacket(buffer).deserialize();
-}
+/** クライアント由来の PlayerSkin はこちらで読む。壊れた長さで固まらないよう境界チェック付き。 */
+export const SafePlayerSkinPacket = SafeRead(PlayerSkinPacket);
