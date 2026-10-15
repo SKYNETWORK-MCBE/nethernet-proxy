@@ -1,5 +1,8 @@
 import type { AddressInfo } from 'node:net';
 import {
+  Bossbar,
+  BossbarColor,
+  BossbarOverlay,
   NetherNetProxy,
   proxyServerIdentity,
   authenticateTransport,
@@ -36,6 +39,9 @@ proxy.on('playerJoin', ({ connectionId, identity }) =>
   console.log(JSON.stringify({ event: 'player_join', connectionId, identity })),
 );
 
+// Bossbar demo: one bar shared by everyone and one per player.
+const sharedBar = new Bossbar({ title: 'Shared bar', color: BossbarColor.Blue });
+
 setInterval(async () => {
   for (const player of proxy.getPlayers()) {
     const [ping, serverPing] = await Promise.all([player.getPing(), player.getServerPing()]);
@@ -52,6 +58,20 @@ setInterval(async () => {
 
 proxy.on('playerSpawn', ({ player }) => {
   console.log(JSON.stringify({ event: 'player_spawn', connectionId: player.connectionId }));
+  const ownBar = new Bossbar({
+    title: `${player.name}'s bar`,
+    color: BossbarColor.Red,
+    overlay: BossbarOverlay.Notched10,
+  });
+  sharedBar.show(player);
+  ownBar.show(player);
+  let tick = 0;
+  const timer = setInterval(() => {
+    if (!player.isValid) return clearInterval(timer);
+    tick++;
+    ownBar.percent = (tick % 11) / 10;
+    sharedBar.title = `Shared bar (${tick}s)`;
+  }, 1_000);
   console.log(player.identity)
   setTimeout(() => {
     const message = `Hello, ${player.name}! (xuid=${player.xuid}, pfid=${player.persistentId})`;

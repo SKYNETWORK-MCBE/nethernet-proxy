@@ -11,7 +11,7 @@ import {
   SetLocalPlayerAsInitializedPacket,
   StartGamePacket,
 } from '@serenityjs/protocol';
-import { NetherNetProxy } from '../src/index';
+import { Bossbar, NetherNetProxy } from '../src/index';
 import type { Player, PlayerJoinEvent, PlayerLeaveEvent } from '../src/index';
 import { loginIdentity } from '../src/identity';
 import { setup } from '../../relay/test/helpers/relay';
@@ -212,7 +212,11 @@ test('real packet observations produce Join → Spawn → Leave; duplicate packe
   a.session.receive('c2s', 'reliable', opaque);
   a.session.receive('s2c', 'reliable', opaque);
   assert.deepEqual(a.errors, []);
+  const bar = new Bossbar();
+  bar.show(player);
   await player.close('bye');
+  assert.equal(bar.players.size, 0);
+  assert.equal(player.bossbars.size, 0);
   await player.close('again');
   h.relay.emit('sessionClose', a.session, 'duplicate');
   assert.deepEqual(order, ['join', 'spawn', 'leave']);
