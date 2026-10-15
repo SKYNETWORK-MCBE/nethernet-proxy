@@ -37,7 +37,7 @@ proxy.on('playerSpawn', ({ player, initialSpawn }) => {
 });
 proxy.on('playerLeave', ({ connectionId, player, reason }) => {
   // Join後・Spawn前の退出ならplayerはundefined。生成済みならclosed。
-  console.log(connectionId, player?.closed, reason);
+  console.log(connectionId, player?.isValid, reason);
 });
 
 await proxy.listen(19134, '127.0.0.1');
@@ -100,6 +100,27 @@ signaling identityがある場合は、認証済みLogin tokenのXUIDと照合�
 照合はclient JWT検証より前に行います。通知timeout後に不一致が判明した場合も、同じ接続が生きていれば切断します。既にJoinを通知していればLeaveを通知します。
 名前やPlayFab IDは比較せずLogin側を採用します。未検証LoginのXUIDがsignalingと一致しても `verified: true` にしません。
 signaling情報がない場合は照合を省略し、`verified` はLoginの署名検証結果を表します。詳細なsignaling情報は `player.session.verifiedSignaling` で取得できます。
+
+## Bossbar
+
+proxyが所有するボスバーです。1本を複数Playerに表示でき、更新は表示中の全員へ同じBufferで送ります。
+
+```ts
+import { Bossbar, BossbarColor, BossbarOverlay } from '@nethernet-proxy/proxy';
+
+const bar = new Bossbar({ title: 'Event', percent: 1, color: BossbarColor.Blue });
+bar.show(player);
+bar.percent = 0.5; // title / color / overlayも同様
+bar.hide(player); // 引数なしで全員から非表示
+```
+
+- Bedrock 1.26.50以降のBossEvent形式のみ対応します。
+- バーごとにserverのactor IDと重ならない予約範囲の `uniqueId` を割り当てます。serverのボスバーとは干渉しません。
+- clientは既知のentityのバーしか表示しないため、表示先ごとに透明・大きさ0のダミーactorを初期位置の下に置きます。距離が離れても消えません。
+- ディメンション移動でclientはバーを消すため、自動で再表示します。そのため、バーを表示している間だけそのsessionのc2s ServerboundLoadingScreen（ロード画面の終了）を観測します（c2s batchを展開します。転送は保留しません）。死亡・リスポーンでは消えません。
+- `percent` は0〜1に丸め、有限でない値は拒否します。
+- `show()` を表示中のPlayerへ再度呼ぶと現在の状態で再送します。
+- `player.bossbars` は表示中のバーです。退出したPlayerは自動で外れます。
 
 ## Loginのclient data
 

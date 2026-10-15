@@ -1,6 +1,6 @@
 import { SetTitlePacket, TitleType, TextPacket, TextVariantType, TextVariant, TextType, ToastRequestPacket } from '@serenityjs/protocol';
 import type { Player } from './player';
-import type { TitleDisplayOptions } from '@serenityjs/core';
+import type { TitleDisplayOptions } from '../types';
 
 export class ScreenDisplay {
   constructor(protected readonly player: Player) {}

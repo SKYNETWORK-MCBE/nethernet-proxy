@@ -4,6 +4,7 @@ import { createServer } from 'node:http';
 import type { AddressInfo } from 'node:net';
 import { SignalStructure, SignalType } from 'nethernet';
 import { Relay } from '../src/relay';
+import type { ISession } from '../src/types';
 import { serverIdentity, plainSdp } from './helpers/sdp';
 import { sdpHash } from '../src/sdp-verifier';
 import { createServerConnector, trackConnectionClose } from '../src/transport';
@@ -194,3 +195,64 @@ test(
     );
   },
 );
+
+test('signaling request passed with the offer is exposed on the session', { timeout: 20000 }, async () => {
+  const http = createServer((_, res) => {
+    res.writeHead(503);
+    res.end();
+  });
+  await new Promise<void>((resolve) => http.listen(0, '127.0.0.1', resolve));
+  const relay = new Relay({
+    serverUrl: `http://127.0.0.1:${(http.address() as AddressInfo).port}`,
+    clientSideIdentity: serverIdentity,
+    verifyOffer: async (sdp) => ({
+      sdpSha256: sdpHash(sdp),
+      xuid: '1',
+      gamertag: 'test',
+      playFabId: 'test',
+      publicKeyFingerprint: 'test',
+      issuer: 'test',
+      expiresAt: Date.now() / 1000 + 600,
+    }),
+  });
+  const request = { headers: new Headers({ 'x-real-ip': '203.0.113.1' }), remoteAddress: '127.0.0.1' };
+  const opened = new Promise<ISession>((resolve) => relay.on('sessionOpen', resolve));
+  const closed = new Promise<void>((resolve) => relay.on('sessionClose', () => resolve()));
+  let peerClosed = () => Promise.resolve();
+  const client = createServerConnector(
+    relay.clientEndpoint.networkId,
+    { identity: await identity(), responseTimeoutMs: 1000, inactivityTimeoutMs: 1000 },
+    (connection) => {
+      peerClosed = trackConnectionClose(connection);
+    },
+  );
+  client.on('error', () => {});
+  client.signalHandler = (signal) => {
+    signal.networkId = client.networkId;
+    if (signal.type !== SignalType.ConnectRequest) return;
+    void relay.clientEndpoint.handleOffer(
+      signal,
+      (reply) => {
+        reply.networkId = relay.clientEndpoint.networkId;
+        client.handleSignal(reply);
+      },
+      undefined,
+      undefined,
+      request,
+    );
+  };
+  try {
+    client.connect();
+    const session = await opened;
+    assert.equal(session.signalingRequest, request);
+    assert.equal(session.signalingRequest?.headers.get('x-real-ip'), '203.0.113.1');
+    await closed;
+  } finally {
+    const socketClosed = new Promise<void>((resolve) => client.socket.once('close', resolve));
+    client.close();
+    await Promise.all([socketClosed, peerClosed()]);
+    await relay.close();
+    http.closeAllConnections();
+    await new Promise<void>((resolve) => http.close(() => resolve()));
+  }
+});

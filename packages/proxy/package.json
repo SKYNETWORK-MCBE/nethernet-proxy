@@ -1,6 +1,6 @@
 {
   "name": "@nethernet-proxy/proxy",
-  "version": "0.0.4",
+  "version": "0.2.0",
   "description": "High-level NetherNet proxy with player lifecycle events",
   "license": "MIT",
   "files": [
@@ -29,7 +29,6 @@
     "@nethernet-proxy/emitter": "workspace:*",
     "@nethernet-proxy/relay": "workspace:*",
     "@serenityjs/binarystream": "^3.1.0",
-    "@serenityjs/core": "^0.8.21",
     "@serenityjs/protocol": "0.8.21",
     "@serenityjs/raknet": "0.8.21",
     "nethernet-gateway": "^0.2.0"

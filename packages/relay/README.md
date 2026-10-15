@@ -210,23 +210,24 @@ sessionは `connectionId / networkId / verifiedSignaling / client / server / rea
 
 `RelayOptions` にはclient側の入口用にnethernetの `ServerOptions` も渡せます。
 
-| option                             | 既定                                                             |
-| ---------------------------------- | ---------------------------------------------------------------- |
-| `serverUrl` / `clientSideIdentity` | 必須                                                             |
-| `serverSideIdentity`               | 未指定。online BDSでは正規identityが必要                         |
-| `verifyOffer`                      | nethernet-gatewayのMinecraft token / SDP fingerprint検証         |
-| `webrtcBackend`                    | `werift`（前後共通）                                             |
-| `serverOptions`                    | response / inactivity timeout各20秒。server側ICE設定等を指定可能 |
-| `maxSessions`                      | 128（検証中の予約を含む）                                        |
-| `maxPendingOffers`                 | 8（検証〜client接続確立待ち）                                    |
-| `offerTimeoutMs`                   | 20000（client側検証/SDP生成、server側HTTP）                      |
-| `acceptTimeoutMs`                  | 20000（clientのWebRTC接続待ち）                                  |
-| `maxQueueBytes`                    | 8 MiB（保持/待機 + 観測時点のDataChannel bufferedAmount）        |
-| `maxQueueMessages`                 | 4096（保持/待機frame数）                                         |
-| `maxPayloadBytes`                  | 8 MiB（受信payload、解凍後batch、再encode）                      |
-| `fragmentSize`                     | 10000 byte（payload部分。出力は最大256fragment）                 |
-| `fragmentTimeoutMs`                | 20000                                                            |
-| `log`                              | 出力なし。JWT・SDP・body全文は診断に含めない                     |
+| option                             | 既定                                                              |
+| ---------------------------------- | ----------------------------------------------------------------- |
+| `serverUrl` / `clientSideIdentity` | 必須                                                              |
+| `serverSideIdentity`               | 未指定。online BDSでは正規identityが必要                          |
+| `verifyOffer`                      | nethernet-gatewayのMinecraft token / SDP fingerprint検証          |
+| `webrtcBackend`                    | `werift`（前後共通）                                              |
+| `serverOptions`                    | response / inactivity timeout各20秒。server側ICE設定等を指定可能  |
+| `publicUdp`                        | 未指定。BDSの `server-udp-ports` 相当（公開IP/port→ローカルport） |
+| `maxSessions`                      | 128（検証中の予約を含む）                                         |
+| `maxPendingOffers`                 | 8（検証〜client接続確立待ち）                                     |
+| `offerTimeoutMs`                   | 20000（client側検証/SDP生成、server側HTTP）                       |
+| `acceptTimeoutMs`                  | 20000（clientのWebRTC接続待ち）                                   |
+| `maxQueueBytes`                    | 8 MiB（保持/待機 + 観測時点のDataChannel bufferedAmount）         |
+| `maxQueueMessages`                 | 4096（保持/待機frame数）                                          |
+| `maxPayloadBytes`                  | 8 MiB（受信payload、解凍後batch、再encode）                       |
+| `fragmentSize`                     | 10000 byte（payload部分。出力は最大256fragment）                  |
+| `fragmentTimeoutMs`                | 20000                                                             |
+| `log`                              | 出力なし。JWT・SDP・body全文は診断に含めない                      |
 
 上限超過・send失敗は当該sessionを切断します。Reliableのfragment不整合/timeoutも切断します。
 Unreliableの欠落・順序変更では観測/保持batchを破棄して診断し、Reliable接続は維持します。

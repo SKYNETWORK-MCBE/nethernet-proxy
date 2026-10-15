@@ -11,7 +11,7 @@ import {
   SetLocalPlayerAsInitializedPacket,
   StartGamePacket,
 } from '@serenityjs/protocol';
-import { NetherNetProxy } from '../src/index';
+import { Bossbar, NetherNetProxy } from '../src/index';
 import { PlayerSkin } from '../src/index';
 import type {
   Player,
@@ -185,7 +185,7 @@ test('real packet observations produce Join → Spawn → Leave; duplicate packe
   h.proxy.on('playerLeave', (event) => {
     left = event;
     assert.equal(h.proxy.players.size, 0);
-    assert.ok(event.player?.closed);
+    assert.ok(event.player && !event.player.isValid);
     order.push('leave');
   });
   const a = h.add();
@@ -221,7 +221,11 @@ test('real packet observations produce Join → Spawn → Leave; duplicate packe
   assert.deepEqual(a.errors, []);
   a.session.receive('c2s', 'reliable', opaque);
   assert.equal(a.session.closed, false);
+  const bar = new Bossbar();
+  bar.show(player);
   await player.close('bye');
+  assert.equal(bar.players.size, 0);
+  assert.equal(player.bossbars.size, 0);
   await player.close('again');
   h.relay.emit('sessionClose', a.session, 'duplicate');
   assert.deepEqual(order, ['join', 'spawn', 'leave']);
@@ -492,7 +496,7 @@ test('gateway teardown failure still closes relay, removes Players and detaches 
   assert.equal(closeRelay.mock.calls.length, 1);
   assert.equal(h.relay.listenerCount('sessionOpen'), 0);
   assert.equal(h.proxy.players.size, 0);
-  assert.ok(player.closed);
+  assert.ok(!player.isValid);
 });
 
 test('PoC-style verification preserves Serenity ClientData including skins and nested claims', async () => {

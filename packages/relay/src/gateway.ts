@@ -87,6 +87,7 @@ export class TransportGateway extends NetherNetGateway {
             },
             undefined,
             controller.signal,
+            { headers: new Headers(ctx.req.headers), remoteAddress: ctx.remoteAddress },
           )
           .catch(() => finish(new Response(null, { status: 502 }), 'http_offer_failed'));
       });

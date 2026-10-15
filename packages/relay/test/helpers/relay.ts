@@ -39,6 +39,7 @@ export function setup(
     clientConnection,
     '123',
     undefined,
+    undefined,
     hooks,
     { ...defaultLimits, ...limits },
     {
