@@ -4,6 +4,7 @@ import type { PlayerIdentity } from '../identity';
 import type { NetherNetProxy } from '../proxy';
 import type { RawMessage, RawText } from '../types';
 import { ScreenDisplay } from './screen-display';
+import type { PlayerSkin } from './skin';
 import type { Bossbar } from '../ui';
 
 export interface InitialPlayerState {
@@ -28,7 +29,18 @@ export class Player {
     readonly initialState: InitialPlayerState,
     readonly protocol: number | undefined,
     readonly clientData: ClientData,
+    private currentSkin: PlayerSkin | undefined,
   ) {}
+
+  /** Login skin, then the latest PlayerSkin change. Undefined only when client data is unavailable. */
+  get skin() {
+    return this.currentSkin;
+  }
+
+  /** @internal */
+  setSkin(skin: PlayerSkin) {
+    this.currentSkin = skin;
+  }
 
   /** NetherNet connection ID of the client, as a decimal string. Key for `NetherNetProxy.getPlayer()`. */
   get connectionId() {

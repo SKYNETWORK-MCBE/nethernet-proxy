@@ -19,10 +19,10 @@ import {
   SetLocalPlayerAsInitializedPacket,
   type ClientData,
 } from '@serenityjs/protocol';
-import { StartGamePacket } from './protocol';
+import { SafePlayerSkinPacket, StartGamePacket } from './protocol';
 import { loginIdentity } from './identity';
 import type { PlayerIdentity } from './identity';
-import { Player, type InitialPlayerState } from './player';
+import { Player, PlayerSkin, type InitialPlayerState } from './player';
 import type { PlayerJoinEvent, ProxyEvents } from './events';
 import { verifyLoginClientData } from './client-data';
 
@@ -44,6 +44,7 @@ interface ConnectionState {
   identity: PlayerIdentity;
   protocol?: number;
   clientData?: ClientData;
+  skin?: PlayerSkin;
   joined: boolean;
   joinNotified: boolean;
   initialized: boolean;
@@ -53,6 +54,16 @@ interface ConnectionState {
   initialState?: InitialPlayerState;
   player?: Player;
   readonly hooks: (() => void)[];
+}
+
+/** Initial implementation is main-player only; subclient packets carry a nonzero subclient ID. */
+function isSubClient(buffer: Buffer) {
+  let header = 0;
+  for (let index = 0; index < 3; index++) {
+    header |= (buffer[index] & 0x7f) << (index * 7);
+    if (!(buffer[index] & 0x80)) break;
+  }
+  return (header & 0x3c00) !== 0;
 }
 
 export class NetherNetProxy extends Emitter<ProxyEvents> {
@@ -161,13 +172,7 @@ export class NetherNetProxy extends Emitter<ProxyEvents> {
             this.connections.get(session.connectionId) !== state
           )
             return;
-          // Initial implementation is main-player only; ignore subclient packets.
-          let header = 0;
-          for (let index = 0; index < 3; index++) {
-            header |= (buffer[index] & 0x7f) << (index * 7);
-            if (!(buffer[index] & 0x80)) break;
-          }
-          if (header & 0x3c00) return;
+          if (isSubClient(buffer)) return;
           try {
             callback(buffer);
           } catch {
@@ -249,6 +254,43 @@ export class NetherNetProxy extends Emitter<ProxyEvents> {
       this.unhook(state);
       this.spawn(state);
     });
+    // Skin changes outlive the lifecycle hooks; the session clears this hook on close.
+    // Trusts the client's request (c2s). BDS echoes an identical s2c PlayerSkin to the sender, but
+    // confirming on it would keep every s2c batch decoded; revisit only if BDS is seen rejecting skins.
+    session.packetHandler(Packet.PlayerSkin, { direction: 'c2s', channel: 'reliable' }).after(
+      (buffer) => {
+        if (
+          this.stopped ||
+          session.closed ||
+          this.connections.get(session.connectionId) !== state ||
+          isSubClient(buffer)
+        )
+          return;
+        let skin: PlayerSkin;
+        try {
+          skin = new PlayerSkin(new SafePlayerSkinPacket(buffer).deserialize().skin);
+        } catch {
+          this.relay.log('player_tracking_error', {
+            connectionId: session.connectionId,
+            reason: 'invalid_skin',
+          });
+          return;
+        }
+        const previous = state.skin;
+        state.skin = skin;
+        state.player?.setSkin(skin);
+        this.emit(
+          'playerSkinChange',
+          Object.freeze({
+            connectionId: session.connectionId,
+            session,
+            player: state.player,
+            skin,
+            previous,
+          }),
+        );
+      },
+    );
     this.emit('sessionOpen', session);
   };
 
@@ -279,6 +321,17 @@ export class NetherNetProxy extends Emitter<ProxyEvents> {
       if (result) {
         state.clientData = result.clientData;
         state.identity = result.identity;
+        // A PlayerSkin change that arrived during verification is newer than the login skin.
+        if (!state.skin) {
+          try {
+            state.skin = PlayerSkin.fromClientData(result.clientData);
+          } catch {
+            this.relay.log('player_tracking_error', {
+              connectionId: state.session.connectionId,
+              reason: 'invalid_skin',
+            });
+          }
+        }
       }
       this.notifyJoin(state);
       this.spawn(state);
@@ -348,6 +401,7 @@ export class NetherNetProxy extends Emitter<ProxyEvents> {
       state.initialState,
       state.protocol,
       this.joinEvent(state).clientData,
+      state.skin,
     );
     this.activePlayers.set(state.session.connectionId, state.player);
     this.emit('playerSpawn', Object.freeze({ player: state.player, initialSpawn: true }));
