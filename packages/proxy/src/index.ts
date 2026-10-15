@@ -7,12 +7,12 @@ export type * from './types';
 export type { PlayerIdentity } from './identity';
 export type { ClientData } from '@serenityjs/protocol';
 export type {
-  SkinData,
+  SerializedSkin,
   SkinImage,
   SkinAnimation,
   SkinPersonaPiece,
   SkinPersonaTintPiece,
-} from './protocol/player-skin';
+} from './protocol/types';
 export type {
   PlayerJoinEvent,
   PlayerSpawnEvent,

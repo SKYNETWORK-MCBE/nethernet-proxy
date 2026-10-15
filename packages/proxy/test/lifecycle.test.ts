@@ -25,7 +25,7 @@ import { encodePayload, fragmentPayload, uint } from '../../relay/src/framing';
 import { serverIdentity, offer } from '../../relay/test/helpers/sdp';
 import { Authentication } from '@bedrock-apis/carolina-authentication';
 import { verifyLoginClientData } from '../src/client-data';
-import { readPlayerSkinPacket } from '../src/protocol';
+import { PlayerSkinPacket, readPlayerSkinPacket } from '../src/protocol';
 import type { ClientData } from '../src/index';
 
 const clientKeys = generateKeyPairSync('ec', { namedCurve: 'secp384r1' });
@@ -903,26 +903,31 @@ test('PlayerSkin validates image sizes and exposes login skin fields', () => {
 test('PlayerSkin packets decode the current layout and fail fast on stale or truncated data', () => {
   const packet = readPlayerSkinPacket(skinPacket('wire'));
   assert.equal(packet.uuid, '01020304-0506-0708-090a-0b0c0d0e0f10');
-  assert.equal(packet.newSkinName, 'new');
+  assert.equal(packet.skinName, 'new');
   assert.equal(packet.oldSkinName, 'old');
-  assert.equal(packet.skin.id, 'wire');
+  assert.equal(packet.skin.identifier, 'wire');
   assert.equal(packet.skin.armSize, 'wide');
   assert.equal(packet.skin.skinColor, '#ffb37b62');
   assert.equal(packet.skin.animations[0].frames, 1);
-  assert.equal(packet.skin.personaPieces[0].pieceType, 3);
+  assert.equal(packet.skin.personaPieces[0].type, 'persona_skin');
+  assert.equal(packet.skin.tintPieces[0].type, 'persona_hair');
   assert.equal(packet.skin.tintPieces[0].colors.length, 4);
   assert.equal(packet.skin.isTrusted, true);
   assert.equal(packet.skin.profileHash, 'hash');
   assert.equal(new PlayerSkin(packet.skin).getGeometry() instanceof Object, true);
+  // read -> write はバイト単位で元に戻る。
+  const written = new PlayerSkinPacket();
+  Object.assign(written, packet);
+  assert.deepEqual(Buffer.from(written.serialize()), skinPacket('wire'));
   // A huge element count must not loop over zero-filled reads (the 0.8.21 decoder hung here).
   const huge = skinPacket('wire');
   const animations = huge.indexOf(Buffer.concat([varuint(1), u32(1), u32(1)]), 60);
   huge[animations] = 0xff;
   const started = performance.now();
-  assert.throws(() => readPlayerSkinPacket(huge), /truncated_skin|varint_overflow/);
+  assert.throws(() => readPlayerSkinPacket(huge), /truncated_packet|VarInt exceeds/);
   const full = skinPacket('wire');
   for (const length of [1, 17, 40, full.length - 1])
-    assert.throws(() => readPlayerSkinPacket(full.subarray(0, length)), /truncated_skin/);
+    assert.throws(() => readPlayerSkinPacket(full.subarray(0, length)), /truncated_packet/);
   assert.ok(performance.now() - started < 100);
 });
 
