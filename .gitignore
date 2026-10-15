@@ -1,6 +1,6 @@
 bds
 node_modules
-dist/
-cache/
-coverage/
+dist
+cache
+coverage
 .claude
